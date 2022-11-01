@@ -10,7 +10,7 @@ fn main() {
     //get a board
     let board = todo!();
     //run evaluation
-    let good_moves = engine(board);
+    engine(board);
     //return evaluation
 }
 
@@ -21,10 +21,10 @@ struct Node {
     win_count: i32,
     possible_moves: Moves,
     children: Vec<CellNodeReference>,
-    origin: HowDidIGetHere,
+    origin: Origin,
 }
 
-enum HowDidIGetHere {
+enum Origin {
     Parent(Weak<RefCell<Node>>, Move),
     Root(Board),
 }
@@ -35,14 +35,14 @@ fn engine(board: Board) -> Moves {
         win_count: 0, //twice as big due to draws being counted as 0.5
         possible_moves: board.all_legal_moves(),
         children: Vec::new(),
-        origin: HowDidIGetHere::Root(board),
+        origin: Origin::Root(board),
     };
     let root = Rc::new(RefCell::new(root));
-    Algorithm(root);
+    algorithm(root);
     todo!()
 }
 
-fn Algorithm(root: CellNodeReference) {
+fn algorithm(root: CellNodeReference) {
     let mut leaf_node = selection_phase(root);
     expansion_phase(leaf_node);
 }
@@ -70,10 +70,10 @@ fn selection_phase(boxed_node: CellNodeReference) -> CellNodeReference {
 fn extract_board(node: CellNodeReference) -> Board {
     let content = <Rc<RefCell<Node>> as Borrow<RefCell<Node>>>::borrow(&node).borrow();
     match &content.origin {
-        HowDidIGetHere::Root(board_ref) => {
+        Origin::Root(board_ref) => {
             board_ref.clone()
         }
-        HowDidIGetHere::Parent(parent, node_move) => {
+        Origin::Parent(parent, node_move) => {
             let mut board = extract_board(parent.upgrade().unwrap());
             board.apply_move(*node_move);
             board
@@ -93,17 +93,17 @@ fn expansion_phase(leaf_node_reference: CellNodeReference) {
         Output::Draw => 1,
         Output::Loss => 0,
     };
-    let new_Node = Rc::new(RefCell::new(Node {
+    let new_node = Rc::new(RefCell::new(Node {
         simulations: 0,
         win_count: 0, //twice as big due to draws being counted as 0.5
         possible_moves: possible_next_moves,
         children: Vec::new(),
-        origin: HowDidIGetHere::Parent(Rc::downgrade(&leaf_node_reference), next_move),
+        origin: Origin::Parent(Rc::downgrade(&leaf_node_reference), next_move),
     }));
     leaf_node_reference
         .borrow_mut()
         .children
-        .push(new_Node);
+        .push(new_node);
     backpropagation(simulation_value, &Rc::downgrade(&leaf_node_reference));
 }
 
@@ -112,7 +112,7 @@ fn backpropagation(value: i8, node: &Weak<RefCell<Node>>) {
         let mut node_content: RefMut<Node> = <Rc<RefCell<Node>> as Borrow<RefCell<Node>>>::borrow(&bar).borrow_mut();
         node_content.win_count += value as i32;
         node_content.simulations += 1;
-        if let HowDidIGetHere::Parent(parent, Move) = node_content.origin.borrow() {
+        if let Origin::Parent(parent, _node_move) = node_content.origin.borrow() {
             backpropagation(value, parent)
         }
     }
@@ -140,10 +140,10 @@ struct Board {
 }
 
 impl Board {
-    fn guest_add_tile(&mut self, Tile: Tile, position: Position) {
-        self.played_tiles_guest.push((Tile, position));
-        for (TileType, mut amount) in &self.reserve_guest {
-            if *TileType == Tile {
+    fn guest_add_tile(&mut self, tile: Tile, position: Position) {
+        self.played_tiles_guest.push((tile, position));
+        for (tile_type, mut amount) in &self.reserve_guest {
+            if *tile_type == tile {
                 amount -= 1;
                 break;
             }
@@ -157,8 +157,8 @@ impl Board {
             for (_, position) in &self.played_tiles_guest {
                 todo!()
             }
-            for (Tile, _) in &self.reserve_guest {
-                if let Tile::Flower(FlowerTile) = Tile {
+            for (tile, _) in &self.reserve_guest {
+                if let Tile::Flower(_flower_tile) = tile {
                     todo!()
                 }
             }
@@ -166,8 +166,8 @@ impl Board {
             for (_, position) in &self.played_tiles_host {
                 todo!()
             }
-            for (Tile, _) in &self.reserve_host {
-                if let Tile::Flower(FlowerTile) = *Tile {
+            for (tile, _) in &self.reserve_host {
+                if let Tile::Flower(_flower_tile) = *tile {
                     todo!()
                 }
             }
@@ -175,10 +175,10 @@ impl Board {
         move_set
     }
 
-    fn host_add_tile(&mut self, Tile: Tile, position: Position) {
-        self.played_tiles_host.push((Tile, position));
-        for (TileType, mut amount) in &self.reserve_host {
-            if *TileType == Tile {
+    fn host_add_tile(&mut self, tile: Tile, position: Position) {
+        self.played_tiles_host.push((tile, position));
+        for (tile_type, mut amount) in &self.reserve_host {
+            if *tile_type == tile {
                 amount -= 1;
                 break;
             }
@@ -187,55 +187,55 @@ impl Board {
 
     fn apply_move(&mut self, a_move: Move){
         match a_move {
-            Move::Planting(FlowerTile, position) => {
+            Move::Planting(flower_tile, position) => {
                 if self.move_count % 2 == 0 {
                     //Turn Guest
-                    self.guest_add_tile(Tile::Flower(FlowerTile), position);
+                    self.guest_add_tile(Tile::Flower(flower_tile), position);
                 } else {
                     //Turn Host
-                    self.host_add_tile(Tile::Flower(FlowerTile), position);
+                    self.host_add_tile(Tile::Flower(flower_tile), position);
                 }
             }
-            Move::Arranging(start, end, HarmonyBonus) => {
+            Move::Arranging(start, end, harmony_bonus) => {
                 if self.move_count % 2 == 0 {
                     //Turn Guest
-                    for (TileType, position) in &mut self.played_tiles_guest {
+                    for (_tile_type, position) in &mut self.played_tiles_guest {
                         if *position == start {
                             *position = end;
                             break;
                         }
                     }
-                    if let Some(BonusMove) = HarmonyBonus {
-                        match BonusMove {
-                            HarmonyBonus::PlaceAccentTile(AccentTile, position) => {
-                                self.guest_add_tile(Tile::Accent(AccentTile), position);
+                    if let Some(bonus_move) = harmony_bonus {
+                        match bonus_move {
+                            HarmonyBonus::PlaceAccentTile(accent_tile, position) => {
+                                self.guest_add_tile(Tile::Accent(accent_tile), position);
                             }
-                            HarmonyBonus::PlantFlower(FlowerTile, position) => {
-                                self.guest_add_tile(Tile::Flower(FlowerTile), position);
+                            HarmonyBonus::PlantFlower(flower_tile, position) => {
+                                self.guest_add_tile(Tile::Flower(flower_tile), position);
                             }
-                            HarmonyBonus::PlantSpecialFlower(SpecialFlowerTile, position) => {
-                                self.guest_add_tile(Tile::Special(SpecialFlowerTile), position);
+                            HarmonyBonus::PlantSpecialFlower(special_flower_tile, position) => {
+                                self.guest_add_tile(Tile::Special(special_flower_tile), position);
                             }
                         }
                     }
                 } else {
                     //Turn Host
-                    for (TileType, position) in &mut self.played_tiles_guest {
+                    for (_tile_type, position) in &mut self.played_tiles_guest {
                         if *position == start {
                             *position = end;
                             break;
                         }
                     }
-                    if let Some(BonusMove) = HarmonyBonus {
-                        match BonusMove {
-                            HarmonyBonus::PlaceAccentTile(AccentTile, position) => {
-                                self.host_add_tile(Tile::Accent(AccentTile), position);
+                    if let Some(bonus_move) = harmony_bonus {
+                        match bonus_move {
+                            HarmonyBonus::PlaceAccentTile(accent_tile, position) => {
+                                self.host_add_tile(Tile::Accent(accent_tile), position);
                             }
-                            HarmonyBonus::PlantFlower(FlowerTile, position) => {
-                                self.host_add_tile(Tile::Flower(FlowerTile), position);
+                            HarmonyBonus::PlantFlower(flower_tile, position) => {
+                                self.host_add_tile(Tile::Flower(flower_tile), position);
                             }
-                            HarmonyBonus::PlantSpecialFlower(SpecialFlowerTile, position) => {
-                                self.host_add_tile(Tile::Special(SpecialFlowerTile), position);
+                            HarmonyBonus::PlantSpecialFlower(special_flower_tile, position) => {
+                                self.host_add_tile(Tile::Special(special_flower_tile), position);
                             }
                         }
                     }
