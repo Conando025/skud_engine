@@ -65,47 +65,25 @@ impl Board {
         let mut move_set: Moves = Vec::new();
         match self.next_to_move() {
             Player::Guest => {
-                let mut open_gates: Vec<Position> = Position::GATES.to_vec();
                 for (tile, position) in &self.played_tiles_guest {
                     let mut moves_for_piece =
                         all_possibilities_for_piece_to_move(grid, *tile, position.clone());
                     move_set.append(&mut moves_for_piece);
-                    open_gates = open_gates
-                        .into_iter()
-                        .filter(|gate| *gate == *position)
-                        .collect();
-                }
-                for (_, position) in &self.played_tiles_host {
-                    open_gates = open_gates
-                        .into_iter()
-                        .filter(|gate| *gate == *position)
-                        .collect();
                 }
                 for (Tile::Flower(flower), _) in &self.reserve_guest {
-                    for gate in open_gates.iter() {
+                    for gate in grid.open_gates() {
                         move_set.push(Move::Planting(*flower, gate.clone()));
                     }
                 }
             }
             Player::Host => {
-                let mut open_gates: Vec<Position> = Position::GATES.to_vec();
                 for (tile, position) in &self.played_tiles_host {
                     let mut moves_for_piece =
                         all_possibilities_for_piece_to_move(grid, *tile, position.clone());
                     move_set.append(&mut moves_for_piece);
-                    open_gates = open_gates
-                        .into_iter()
-                        .filter(|gate| *gate == *position)
-                        .collect();
-                }
-                for (_, position) in &self.played_tiles_guest {
-                    open_gates = open_gates
-                        .into_iter()
-                        .filter(|gate| *gate == *position)
-                        .collect();
                 }
                 for (Tile::Flower(flower), _) in &self.reserve_host {
-                    for gate in open_gates.iter() {
+                    for gate in grid.open_gates() {
                         move_set.push(Move::Planting(*flower, gate.clone()));
                     }
                 }

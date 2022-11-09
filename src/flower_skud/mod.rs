@@ -1,7 +1,7 @@
 use crate::monte_carlo_tree_search::{Output, Player};
 use std::collections::HashMap;
 use std::ops::Div;
-use std::{cell, vec};
+use std::vec;
 
 mod other;
 pub use other::*;
@@ -10,7 +10,7 @@ pub use board::*;
 
 #[derive(Clone)]
 pub struct Grid {
-    pub(self) cells: Vec<Cell>,
+    cells: Vec<Cell>
 }
 
 impl Grid {
@@ -24,13 +24,22 @@ impl Grid {
         }
         grid
     }
+
+    pub(super) fn open_gates(&self) -> Vec<Position> {
+        Position::GATES.into_iter().filter(
+            |pos| {
+                self.index(pos).is_none()
+            }
+        ).collect()
+    }
+
     fn index(&self, position: &Position) -> &Option<(Tile, Owner)> {
         let (x, y) = position.value();
         if x > 8 || y > 8 || x.abs() + y.abs() > 12 {
             panic!("Index out of bounds");
         } else {
             let (x, y) = (x + 8, y + 8);
-            &self.cells[(x + y * 17) as usize]
+            &self.cells[x as usize + y as usize * 17]
         }
     }
     fn index_mut(&mut self, position: &Position) -> &mut Option<(Tile, Owner)> {
@@ -39,7 +48,7 @@ impl Grid {
             panic!("Index out of bounds");
         } else {
             let (x, y) = (x + 8, y + 8);
-            &mut self.cells[dbg!(x as usize + y as usize * 17)]
+            &mut self.cells[x as usize + y as usize * 17]
         }
     }
 }
