@@ -9,36 +9,53 @@ pub struct Board {
     move_count: i16,
 }
 
+#[derive(Clone)]
 enum Owner {
     Host,
-    Guest
+    Guest,
 }
 
+type Cell = Option<(Tile, Owner)>;
+
 struct Grid {
-    cells: Vec<(Tile, Owner)>
+    cells: Vec<Cell>,
 }
 
 impl Grid {
     fn create(board: &Board) -> Self {
-        let mut grid = Grid{cells: Vec::new()};
-        for (tile, pos) in board.played_tiles_guest {
-            *grid.index_mut(pos) = (tile, Owner::Guest)
+        let mut cells: Vec<Cell> = Vec::with_capacity(289);
+        cells.fill(None);
+        let mut grid = Grid { cells };
+        for (tile, pos) in &board.played_tiles_guest {
+            *grid.index_mut(pos.clone()) = Some((*tile, Owner::Guest));
         }
-        for (tile, pos) in board.played_tiles_host {
-            *grid.index_mut(pos) = (tile, Owner::Host)
+        for (tile, pos) in &board.played_tiles_host {
+            *grid.index_mut(pos.clone()) = Some((*tile, Owner::Host));
         }
         grid
     }
-    fn index(&self, _position: Position) -> &(Tile, Owner) {
-        todo!()
+    fn index(&self, position: Position) -> &Option<(Tile, Owner)> {
+        let Position { x, y } = position;
+        if x > 8 || y > 8 || x.abs() + y.abs() > 12 {
+            panic!("Index out of bounds");
+        } else {
+            let (x, y) = (x + 8, y + 8);
+            &self.cells[(x + y * 17) as usize]
+        }
     }
-    fn index_mut(&mut self, _position: Position) -> &mut (Tile, Owner) {
-        todo!()
+    fn index_mut(&mut self, position: Position) -> &mut Option<(Tile, Owner)> {
+        let Position { x, y } = position;
+        if x > 8 || y > 8 || x.abs() + y.abs() > 12 {
+            panic!("Index out of bounds");
+        } else {
+            let (x, y) = (x + 8, y + 8);
+            &mut self.cells[(x + y * 17) as usize]
+        }
     }
 }
 
 impl Board {
-    pub fn guest_add_tile(&mut self, tile: Tile, position: Position) {
+    fn guest_add_tile(&mut self, tile: Tile, position: Position) {
         self.played_tiles_guest.push((tile, position));
         for (tile_type, amount) in &mut self.reserve_guest {
             if *tile_type == tile {
@@ -77,7 +94,7 @@ impl Board {
         move_set
     }
 
-    pub fn host_add_tile(&mut self, tile: Tile, position: Position) {
+    fn host_add_tile(&mut self, tile: Tile, position: Position) {
         self.played_tiles_host.push((tile, position));
         for (tile_type, amount) in &mut self.reserve_host {
             if *tile_type == tile {
@@ -118,14 +135,25 @@ impl Board {
                                                 break;
                                             }
                                         }
-                                        self.host_add_tile(Tile::Accent(AccentTile::Boat), position);
+                                        self.host_add_tile(
+                                            Tile::Accent(AccentTile::Boat),
+                                            position,
+                                        );
                                     }
                                     AccentTileMove::Wrapper(accent_tile) => {
-                                        self.host_add_tile(Tile::Accent(accent_tile), position.clone());
+                                        self.host_add_tile(
+                                            Tile::Accent(accent_tile),
+                                            position.clone(),
+                                        );
                                         match accent_tile {
                                             AccentTile::Wheel => {
-                                                for (_, tile_position) in &mut self.played_tiles_guest {
-                                                    Self::wheel_a_tile(position.clone(), tile_position);
+                                                for (_, tile_position) in
+                                                    &mut self.played_tiles_guest
+                                                {
+                                                    Self::wheel_a_tile(
+                                                        position.clone(),
+                                                        tile_position,
+                                                    );
                                                 }
                                             }
                                             _ => {}
@@ -160,27 +188,40 @@ impl Board {
                                                 break;
                                             }
                                         }
-                                        self.host_add_tile(Tile::Accent(AccentTile::Boat), position.clone());
+                                        self.host_add_tile(
+                                            Tile::Accent(AccentTile::Boat),
+                                            position.clone(),
+                                        );
                                     }
                                     AccentTileMove::Wrapper(accent_tile) => {
-                                        self.host_add_tile(Tile::Accent(*accent_tile), position.clone());
+                                        self.host_add_tile(
+                                            Tile::Accent(*accent_tile),
+                                            position.clone(),
+                                        );
                                         match accent_tile {
                                             AccentTile::Wheel => {
-                                                for (_, tile_position) in &mut self.played_tiles_host {
-                                                    Self::wheel_a_tile(position.clone(), tile_position);
+                                                for (_, tile_position) in
+                                                    &mut self.played_tiles_host
+                                                {
+                                                    Self::wheel_a_tile(
+                                                        position.clone(),
+                                                        tile_position,
+                                                    );
                                                 }
                                             }
                                             _ => {}
                                         }
                                     }
                                 }
-
                             }
                             HarmonyBonus::PlantFlower(flower_tile, position) => {
                                 self.host_add_tile(Tile::Flower(*flower_tile), position.clone());
                             }
                             HarmonyBonus::PlantSpecialFlower(special_flower_tile, position) => {
-                                self.host_add_tile(Tile::Special(*special_flower_tile), position.clone());
+                                self.host_add_tile(
+                                    Tile::Special(*special_flower_tile),
+                                    position.clone(),
+                                );
                             }
                         }
                     }
@@ -191,19 +232,27 @@ impl Board {
     }
 
     fn wheel_a_tile(position: Position, tile_position: &mut Position) {
-        if tile_position.y + 1 == position.y && (tile_position.x == position.x || tile_position.x - 1 == position.x) {
+        if tile_position.y + 1 == position.y
+            && (tile_position.x == position.x || tile_position.x - 1 == position.x)
+        {
             tile_position.x += 1;
             return;
         }
-        if tile_position.y - 1 == position.y && (tile_position.x == position.x || tile_position.x + 1 == position.x) {
+        if tile_position.y - 1 == position.y
+            && (tile_position.x == position.x || tile_position.x + 1 == position.x)
+        {
             tile_position.x -= 1;
             return;
         }
-        if tile_position.x + 1 == position.x && (tile_position.y == position.y || tile_position.y + 1 == position.y) {
+        if tile_position.x + 1 == position.x
+            && (tile_position.y == position.y || tile_position.y + 1 == position.y)
+        {
             tile_position.x += 1;
             return;
         }
-        if tile_position.x - 1 == position.x && (tile_position.y == position.y || tile_position.y - 1 == position.y) {
+        if tile_position.x - 1 == position.x
+            && (tile_position.y == position.y || tile_position.y - 1 == position.y)
+        {
             tile_position.x -= 1;
             return;
         }
@@ -233,8 +282,8 @@ pub enum AccentTileMove {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Position {
-    x: u8,
-    y: u8,
+    x: i8,
+    y: i8,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
