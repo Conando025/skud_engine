@@ -7,51 +7,8 @@ mod other;
 pub use other::*;
 mod board;
 pub use board::*;
-
-#[derive(Clone)]
-pub struct Grid {
-    cells: Vec<Cell>
-}
-
-impl Grid {
-    pub fn create(board: Board) -> Self {
-        let mut grid = Grid { cells: vec![None; 289] };
-        for (tile, pos) in &board.played_tiles_guest {
-            *grid.index_mut(pos) = Some((*tile, Owner::Guest));
-        }
-        for (tile, pos) in &board.played_tiles_host {
-            *grid.index_mut(pos) = Some((*tile, Owner::Host));
-        }
-        grid
-    }
-
-    pub(super) fn open_gates(&self) -> Vec<Position> {
-        Position::GATES.into_iter().filter(
-            |pos| {
-                self.index(pos).is_none()
-            }
-        ).collect()
-    }
-
-    fn index(&self, position: &Position) -> &Option<(Tile, Owner)> {
-        let (x, y) = position.value();
-        if x > 8 || y > 8 || x.abs() + y.abs() > 12 {
-            panic!("Index out of bounds");
-        } else {
-            let (x, y) = (x + 8, y + 8);
-            &self.cells[x as usize + y as usize * 17]
-        }
-    }
-    fn index_mut(&mut self, position: &Position) -> &mut Option<(Tile, Owner)> {
-        let (x, y) = position.value();
-        if x.abs() > 8 || y.abs() > 8 || x.abs() + y.abs() > 12 {
-            panic!("Index out of bounds");
-        } else {
-            let (x, y) = (x + 8, y + 8);
-            &mut self.cells[x as usize + y as usize * 17]
-        }
-    }
-}
+mod grid;
+pub use grid::*;
 
 fn all_possibilities_for_piece_to_move(
     grid: &mut Grid,
@@ -129,7 +86,7 @@ fn all_possibilities_for_piece_to_move(
                 let mut tile_left = None;
                 let mut pos_to_check = starting_position.clone();
                 while let (None, Some(p)) =
-                (grid.index(&pos_to_check), pos_to_check.add(Direction::Left))
+                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Left))
                 {
                     pos_to_check = p;
                 }
@@ -138,9 +95,10 @@ fn all_possibilities_for_piece_to_move(
                 }
                 if let Some(tile_left) = tile_left {
                     pos_to_check = starting_position.clone();
-                    while let (None, Some(p)) =
-                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Right))
-                    {
+                    while let (None, Some(p)) = (
+                        grid.index(&pos_to_check),
+                        pos_to_check.add(Direction::Right),
+                    ) {
                         pos_to_check = p;
                     }
                     if let Some((t, _)) = grid.index(&pos_to_check) {
@@ -153,7 +111,7 @@ fn all_possibilities_for_piece_to_move(
                 let mut tile_down = None;
                 pos_to_check = starting_position.clone();
                 while let (None, Some(p)) =
-                (grid.index(&pos_to_check), pos_to_check.add(Direction::Down))
+                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Down))
                 {
                     pos_to_check = p;
                 }
@@ -163,7 +121,7 @@ fn all_possibilities_for_piece_to_move(
                 if let Some(tile_down) = tile_down {
                     pos_to_check = starting_position.clone();
                     while let (None, Some(p)) =
-                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Up))
+                        (grid.index(&pos_to_check), pos_to_check.add(Direction::Up))
                     {
                         pos_to_check = p;
                     }
@@ -173,7 +131,6 @@ fn all_possibilities_for_piece_to_move(
                         }
                     }
                 }
-
             }
 
             //check for new clashes
@@ -226,7 +183,8 @@ fn all_possibilities_for_piece_to_move(
             }
             *grid.index_mut(target_position) = cell_data;
             true
-        }).collect();
+        })
+        .collect();
 
     *grid.index_mut(&starting_position) = tile_data.clone();
 

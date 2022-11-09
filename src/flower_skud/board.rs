@@ -70,8 +70,9 @@ impl Board {
                         all_possibilities_for_piece_to_move(grid, *tile, position.clone());
                     move_set.append(&mut moves_for_piece);
                 }
-                for (Tile::Flower(flower), _) in &self.reserve_guest {
-                    for gate in grid.open_gates() {
+
+                for gate in grid.open_gates() {
+                    for (Tile::Flower(flower), _) in &self.reserve_guest {
                         move_set.push(Move::Planting(*flower, gate.clone()));
                     }
                 }
@@ -82,8 +83,9 @@ impl Board {
                         all_possibilities_for_piece_to_move(grid, *tile, position.clone());
                     move_set.append(&mut moves_for_piece);
                 }
-                for (Tile::Flower(flower), _) in &self.reserve_host {
-                    for gate in grid.open_gates() {
+
+                for gate in grid.open_gates() {
+                    for (Tile::Flower(flower), _) in &self.reserve_host {
                         move_set.push(Move::Planting(*flower, gate.clone()));
                     }
                 }
