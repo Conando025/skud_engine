@@ -101,7 +101,6 @@ fn expansion_phase(leaf_node_reference: CellNodeReference) -> (Board, CellNodeRe
     let next_move =
         possible_next_moves.remove(thread_rng().gen_range(0..possible_next_moves.len()));
     board.apply_move(next_move.clone());
-
     let new_node = Rc::new(RefCell::new(Node {
         simulations: 0,
         win_count: 0,
@@ -142,13 +141,18 @@ fn simulation_phase(mut board: Board) -> Output {
         Player::Guest => Player::Host,
     };
     let mut grid = Grid::create(board.clone());
-    while let None = board.finished(player) {
-        let mut possible_next_moves = board.all_legal_moves(&mut grid);
-        let next_move =
-            possible_next_moves.remove(thread_rng().gen_range(0..possible_next_moves.len()));
-        board.apply_move(next_move);
+    let mut possible_next_moves = board.all_legal_moves(&mut grid);
+    while possible_next_moves.len() > 0 {
+        let next_move = possible_next_moves
+            .get(thread_rng().gen_range(0..possible_next_moves.len()))
+            .unwrap();
+        grid.apply_move(next_move.clone(), board.next_to_move());
+        board.apply_move(next_move.clone());
+        possible_next_moves = board.all_legal_moves(&mut grid);
+        #[cfg(debug_assertions)]
+        println!("{:?}", grid);
     }
-    board.finished(player).unwrap()
+    board.finished(player).unwrap_or(Output::Draw) //the or is for petty draws
 }
 
 #[derive(PartialEq, Copy, Clone)]

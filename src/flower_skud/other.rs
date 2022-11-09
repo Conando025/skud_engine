@@ -50,7 +50,7 @@ impl Position {
     ];
 
     const fn out_of_bound(x: i8, y: i8) -> bool {
-        x > 8 || y > 8 || x.abs() + y.abs() > 12
+        x.abs() > 8 || y.abs() > 8 || x.abs() + y.abs() > 12
     }
 
     pub const fn new(x: i8, y: i8) -> Option<Self> {

@@ -54,15 +54,19 @@ impl Board {
         }
     }
 
-    pub fn finished(&self, _perspective: Player) -> Option<Output> {
+    pub fn finished(&self, perspective: Player) -> Option<Output> {
         if self.moves_since_planting >= 50 {
             return Some(Output::Draw);
         };
+        return None;
         todo!()
     }
 
     pub fn all_legal_moves(&self, grid: &mut Grid) -> Moves {
         let mut move_set: Moves = Vec::new();
+        if self.finished(self.next_to_move()).is_some() {
+            return move_set;
+        }
         match self.next_to_move() {
             Player::Guest => {
                 for (tile, position) in &self.played_tiles_guest {
@@ -91,7 +95,6 @@ impl Board {
                 }
             }
         }
-
         move_set
     }
 

@@ -32,7 +32,7 @@ fn all_possibilities_for_piece_to_move(
             continue;
         };
         let (x_rel, y_rel) = (cell_x - position_x, cell_y - position_y);
-        if x_rel.abs() + y_rel.abs() <= move_range && x_rel != 0 && y_rel != 0 {
+        if (x_rel.abs() + y_rel.abs()) <= move_range && (x_rel != 0 || y_rel != 0) {
             if let &mut Some(_) = cell {
                 tiles_in_range.push(target_position);
                 continue;
