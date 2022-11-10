@@ -152,7 +152,7 @@ fn simulation_phase(mut board: Board) -> Output {
         println!("{:?}", grid);
         possible_next_moves = board.all_legal_moves(&mut grid);
     }
-    board.finished(player).unwrap_or(Output::Draw) //the or is for petty draws
+    board.finished(&grid, player).unwrap_or(Output::Draw) //the or is for petty draws
 }
 
 #[derive(PartialEq, Copy, Clone)]

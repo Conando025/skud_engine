@@ -27,7 +27,7 @@ fn all_possibilities_for_piece_to_move(
     let mut tiles_in_range = Vec::new();
 
     for (index, cell) in grid.cells.iter_mut().enumerate() {
-        let (cell_x, cell_y): (i8, i8) = (index.div(17) as i8 - 8, (index % 17) as i8 - 8);
+        let (cell_x, cell_y): (i8, i8) = ((index % 17) as i8 - 8, index.div(17) as i8 - 8);
         let Some(target_position) = Position::new(cell_x, cell_y) else {
             continue;
         };
@@ -103,6 +103,7 @@ fn all_possibilities_for_piece_to_move(
                     }
                     if let Some((t, _)) = grid.index(&pos_to_check) {
                         if tile_left.clashes(t) {
+                            *grid.index_mut(target_position) = cell_data;
                             return false;
                         }
                     }
@@ -127,12 +128,13 @@ fn all_possibilities_for_piece_to_move(
                     }
                     if let Some((t, _)) = grid.index(&pos_to_check) {
                         if tile_down.clashes(t) {
+                            *grid.index_mut(target_position) = cell_data;
                             return false;
                         }
                     }
                 }
             }
-
+            *grid.index_mut(target_position) = cell_data;
             //check for new clashes
             {
                 let mut pos_to_check = target_position.clone();
@@ -142,7 +144,12 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
+                    if Position::GATES
+                        .iter()
+                        .position(|gate_pos| *gate_pos == pos_to_check)
+                        .is_none()
+                        || moving_tile_type.clashes(t)
+                    {
                         return false;
                     }
                 }
@@ -153,7 +160,12 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
+                    if Position::GATES
+                        .iter()
+                        .position(|gate_pos| *gate_pos == pos_to_check)
+                        .is_none()
+                        || moving_tile_type.clashes(t)
+                    {
                         return false;
                     }
                 }
@@ -164,7 +176,12 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
+                    if Position::GATES
+                        .iter()
+                        .position(|gate_pos| *gate_pos == pos_to_check)
+                        .is_none()
+                        || moving_tile_type.clashes(t)
+                    {
                         return false;
                     }
                 }
@@ -176,12 +193,16 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
+                    if Position::GATES
+                        .iter()
+                        .position(|gate_pos| *gate_pos == pos_to_check)
+                        .is_none()
+                        || moving_tile_type.clashes(t)
+                    {
                         return false;
                     }
                 }
             }
-            *grid.index_mut(target_position) = cell_data;
             true
         })
         .collect();
@@ -190,7 +211,7 @@ fn all_possibilities_for_piece_to_move(
 
     let mut check_list: HashMap<Position, bool> = HashMap::new();
 
-    let mut left_to_check:Vec<(Position, Direction, u8)> = vec![
+    let mut left_to_check: Vec<(Position, Direction, u8)> = vec![
         (starting_position.clone(), Direction::Up, 1),
         (starting_position.clone(), Direction::Down, 1),
         (starting_position.clone(), Direction::Left, 1),
@@ -202,7 +223,7 @@ fn all_possibilities_for_piece_to_move(
             continue
         };
         if let Some(true) = check_list.get(&new_pos) {
-            continue
+            continue;
         };
         for occupied_position in &tiles_in_range {
             if new_pos == *occupied_position {

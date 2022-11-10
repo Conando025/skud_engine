@@ -28,22 +28,14 @@ impl Grid {
 
     pub(super) fn index(&self, position: &Position) -> &Option<(Tile, Owner)> {
         let (x, y) = position.value();
-        if x > 8 || y > 8 || x.abs() + y.abs() > 12 {
-            panic!("Index out of bounds");
-        } else {
-            let (x, y) = (x + 8, y + 8);
-            &self.cells[x as usize + y as usize * 17]
-        }
+        let (x, y) = (x + 8, y + 8);
+        &self.cells[x as usize + y as usize * 17]
     }
 
     pub(super) fn index_mut(&mut self, position: &Position) -> &mut Option<(Tile, Owner)> {
         let (x, y) = position.value();
-        if x.abs() > 8 || y.abs() > 8 || x.abs() + y.abs() > 12 {
-            panic!("Index out of bounds");
-        } else {
-            let (x, y) = (x + 8, y + 8);
-            &mut self.cells[x as usize + y as usize * 17]
-        }
+        let (x, y) = (x + 8, y + 8);
+        &mut self.cells[x as usize + y as usize * 17]
     }
 
     pub fn apply_move(&mut self, a_move: Move, player: Player) {
@@ -64,6 +56,41 @@ impl Grid {
             }
         }
     }
+
+    pub(super) fn list_all_harmonies(&self) -> Vec<(Owner, Position, Position)> {
+        let mut harmonie_list = Vec::new();
+        for i in 0..17 {
+            let mut last_column_tile: &Cell = &None;
+            let mut last_column_tile_coords = (0,0);
+            let mut last_row_tile = None;
+            let mut last_row_tile_coords = (0,0);
+            for j in 0..17 {
+                let (row,column) = (i,j);
+                let new_column_tile = &self.cells[row + column * 17];
+                if self::foo(last_column_tile, new_column_tile) {
+                    harmonie_list.push((last_column_tile.unwrap().1, Position::new(last_column_tile_coords.0,last_column_tile_coords.1).unwrap(), Position::new(i as i8 - 8,j as i8 -8).unwrap()));
+                }
+                let (column, row) = (i,j);
+                let new_row_tile = &self.cells[row + column * 17];
+                if self::foo(last_row_tile, new_row_tile) {
+                    harmonie_list.push((last_row_tile.unwrap().1, Position::new(last_row_tile_coords.0,last_row_tile_coords.1).unwrap(), Position::new(i as i8 - 8,j as i8 -8).unwrap()));
+                }
+            }
+        }
+        harmonie_list
+    }
+
+    fn foo(last_column_tile: &mut Cell, new_column_tile: &Cell) -> bool {
+        if let Some((new_column_tile_type, new_column_tile_owner)) = new_column_tile {
+            if let Some((last_column_tile_type, last_column_tile_owner)) = last_column_tile {
+                if *new_column_tile_owner == *last_column_tile_owner {
+                    last_column_tile_type.harmonizes(new_column_tile_type)
+                }
+            }
+            *last_column_tile = new_column_tile.clone();
+        }
+        false
+    }
 }
 
 impl std::fmt::Debug for Grid {
@@ -73,7 +100,7 @@ impl std::fmt::Debug for Grid {
             representation += "[ ";
             for column in 0..17 {
                 representation += " [ ";
-                if let Some((Tile::Flower(flower), o)) = &self.cells[row * 17 + column] {
+                if let Some((Tile::Flower(flower), o)) = &self.cells[row + column * 17] {
                     match flower {
                         FlowerTile::Rose => {
                             representation += " R3";

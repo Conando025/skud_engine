@@ -54,44 +54,65 @@ impl Board {
         }
     }
 
-    pub fn finished(&self, perspective: Player) -> Option<Output> {
+    pub fn finished(&self, grid: &Grid, perspective: Player) -> Option<Output> {
+        let harmonie_list = grid.list_all_harmonies();
+        let mut guest_harmonies = Vec::new();
+        let mut guest_crossing_harmonies = 0;
+        let mut host_harmonies = Vec::new();
+        let mut host_crossing_harmonies = 0;
+
+        for harmonie in harmonie_list.into_iter() {
+            let (owner, p1, p2) = harmonie;
+            let ((p1_x, p1_y),(p2_x, p2_y)) = (p1.value(), p2.value());
+            match owner {
+                Owner::Host => {
+                    if (p1_y as isize) * (p2_y as isize) < 0 || (p1_x as isize) * (p2_x as isize) < 0 {
+                        host_crossing_harmonies += 1;
+                    }
+                    host_harmonies.push((p1,p2));
+                }
+                Owner::Guest => {
+                    if (p1_y as isize) * (p2_y as isize) < 0 || (p1_x as isize) * (p2_x as isize) < 0 {
+                        guest_crossing_harmonies += 1;
+                    }
+                    guest_harmonies.push((p1,p2));
+                }
+            }
+        }
+
+        todo!("Harmony rings");
+
         if self.moves_since_planting >= 50 {
             return Some(Output::Draw);
         };
         return None;
-        todo!()
+
     }
 
     pub fn all_legal_moves(&self, grid: &mut Grid) -> Moves {
         let mut move_set: Moves = Vec::new();
-        if self.finished(self.next_to_move()).is_some() {
+        if self.finished(grid, next_to_move()).is_some() {
             return move_set;
         }
-        match self.next_to_move() {
-            Player::Guest => {
-                for (tile, position) in &self.played_tiles_guest {
-                    let mut moves_for_piece =
-                        all_possibilities_for_piece_to_move(grid, *tile, position.clone());
-                    move_set.append(&mut moves_for_piece);
-                }
 
-                for gate in grid.open_gates() {
-                    for (Tile::Flower(flower), _) in &self.reserve_guest {
-                        move_set.push(Move::Planting(*flower, gate.clone()));
-                    }
-                }
+        let (tiles_played, reserve) = match self.next_to_move() {
+            Player::Guest => {
+                (&self.played_tiles_guest, &self.reserve_guest)
             }
             Player::Host => {
-                for (tile, position) in &self.played_tiles_host {
-                    let mut moves_for_piece =
-                        all_possibilities_for_piece_to_move(grid, *tile, position.clone());
-                    move_set.append(&mut moves_for_piece);
-                }
+                (&self.played_tiles_host, &self.reserve_host)
+            }
+        };
+        for (tile, position) in tiles_played {
+            let mut moves_for_piece =
+                all_possibilities_for_piece_to_move(grid, *tile, position.clone());
+            move_set.append(&mut moves_for_piece);
+        }
 
-                for gate in grid.open_gates() {
-                    for (Tile::Flower(flower), _) in &self.reserve_host {
-                        move_set.push(Move::Planting(*flower, gate.clone()));
-                    }
+        for gate in grid.open_gates() {
+            for (Tile::Flower(flower), amount) in reserve {
+                if *amount > 0 {
+                    move_set.push(Move::Planting(*flower, gate.clone()));
                 }
             }
         }

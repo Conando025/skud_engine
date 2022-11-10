@@ -17,11 +17,29 @@ impl Tile {
     pub fn clashes(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (&Tile::Flower(FlowerTile::Rose), &Tile::Flower(FlowerTile::Jasmine)) => true,
-            (&Tile::Flower(FlowerTile::Chrysanthemum), &Tile::Flower(FlowerTile::Jasmine)) => true,
+            (&Tile::Flower(FlowerTile::Chrysanthemum), &Tile::Flower(FlowerTile::Lily)) => true,
             (&Tile::Flower(FlowerTile::Rhododendron), &Tile::Flower(FlowerTile::WhiteJade)) => true,
             (&Tile::Flower(FlowerTile::Jasmine), &Tile::Flower(FlowerTile::Rose)) => true,
-            (&Tile::Flower(FlowerTile::Jasmine), &Tile::Flower(FlowerTile::Chrysanthemum)) => true,
+            (&Tile::Flower(FlowerTile::Lily), &Tile::Flower(FlowerTile::Chrysanthemum)) => true,
             (&Tile::Flower(FlowerTile::WhiteJade), &Tile::Flower(FlowerTile::Rhododendron)) => true,
+            _ => false,
+        }
+    }
+
+    pub fn harmonizes(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (&Tile::Flower(FlowerTile::Rose), &Tile::Flower(FlowerTile::Chrysanthemum)) => true,
+            (&Tile::Flower(FlowerTile::Chrysanthemum), &Tile::Flower(FlowerTile::Rhododendron)) => true,
+            (&Tile::Flower(FlowerTile::Rhododendron), &Tile::Flower(FlowerTile::Jasmine)) => true,
+            (&Tile::Flower(FlowerTile::Jasmine), &Tile::Flower(FlowerTile::Lily)) => true,
+            (&Tile::Flower(FlowerTile::Lily), &Tile::Flower(FlowerTile::WhiteJade)) => true,
+            (&Tile::Flower(FlowerTile::WhiteJade), &Tile::Flower(FlowerTile::Rose)) => true,
+            (&Tile::Flower(FlowerTile::Chrysanthemum), &Tile::Flower(FlowerTile::Rose)) => true,
+            (&Tile::Flower(FlowerTile::Rhododendron), &Tile::Flower(FlowerTile::Chrysanthemum)) => true,
+            (&Tile::Flower(FlowerTile::Jasmine), &Tile::Flower(FlowerTile::Rhododendron)) => true,
+            (&Tile::Flower(FlowerTile::Lily), &Tile::Flower(FlowerTile::Jasmine)) => true,
+            (&Tile::Flower(FlowerTile::WhiteJade), &Tile::Flower(FlowerTile::Lily)) => true,
+            (&Tile::Flower(FlowerTile::Rose), &Tile::Flower(FlowerTile::WhiteJade)) => true,
             _ => false,
         }
     }
@@ -88,4 +106,32 @@ pub enum FlowerTile {
     Jasmine,
     Lily,
     WhiteJade,
+}
+
+#[derive(Eq, PartialEq, Copy, Clone)]
+struct Fraction {
+    nominator: isize,
+    denominator: usize,
+}
+
+impl Fraction {
+    pub fn new(nominator: isize, denominator: usize) -> Self {
+        Fraction{nominator, denominator}
+    }
+
+    const NULL:Self = Fraction{nominator:0 , denominator: 0};
+}
+
+impl std::ops::Add for Fraction {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut nominator = self.denominator as isize * rhs.nominator + self.nominator * rhs.denominator as isize;
+        let mut denominator = self.denominator * rhs.denominator;
+        let k = denominator % nominator;
+        if k==0 {
+            nominator /=k;
+            denominator /=k;
+        }
+        Fraction{nominator,denominator}
+    }
 }

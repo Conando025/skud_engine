@@ -18,21 +18,21 @@ fn main() {
     #[allow(unused_variables)]
     let board = Board::empty();
     //run evaluation
-    let root = engine(board, 1_000_000);
+    let root = engine(board, 1_000);
     let root_node = <Rc<RefCell<Node>> as Borrow<RefCell<Node>>>::borrow(&root).borrow();
     let sim_count = root_node.simulations;
     for child in root_node.children.iter() {
         let child_node = <Rc<RefCell<Node>> as Borrow<RefCell<Node>>>::borrow(&child).borrow();
         if let Origin::Parent(_, the_move) = &child_node.origin {
             println!(
-                "{:?}: [ {:>6.3} | {:>6.3} | {:>6.3}]  {:>7.3}%",
-                the_move,
+                "[ {:>6.3} | {:>6.3} | {:>6.3}]  {:>7.3}% for {:?}",
                 child_node.win_count as f64 / child_node.simulations as f64 * 100.0,
                 child_node.draw_count as f64 / child_node.simulations as f64 * 100.0,
                 (child_node.simulations - child_node.win_count - child_node.draw_count) as f64
                     / child_node.simulations as f64
                     * 100.0,
-                child_node.simulations as f64 / sim_count as f64 * 100.0
+                child_node.simulations as f64 / sim_count as f64 * 100.0,
+                the_move
             );
         }
     }
