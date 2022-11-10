@@ -148,9 +148,9 @@ fn simulation_phase(mut board: Board) -> Output {
             .unwrap();
         grid.apply_move(next_move.clone(), board.next_to_move());
         board.apply_move(next_move.clone());
-        possible_next_moves = board.all_legal_moves(&mut grid);
         #[cfg(debug_assertions)]
         println!("{:?}", grid);
+        possible_next_moves = board.all_legal_moves(&mut grid);
     }
     board.finished(player).unwrap_or(Output::Draw) //the or is for petty draws
 }

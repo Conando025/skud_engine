@@ -142,7 +142,7 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if moving_tile_type.clashes(t) {
+                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
                         return false;
                     }
                 }
@@ -153,7 +153,7 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if moving_tile_type.clashes(t) {
+                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
                         return false;
                     }
                 }
@@ -164,7 +164,7 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if moving_tile_type.clashes(t) {
+                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
                         return false;
                     }
                 }
@@ -176,7 +176,7 @@ fn all_possibilities_for_piece_to_move(
                     pos_to_check = p;
                 }
                 if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if moving_tile_type.clashes(t) {
+                    if Position::GATES.iter().position(|gate_pos| *gate_pos == pos_to_check).is_none() || moving_tile_type.clashes(t) {
                         return false;
                     }
                 }
@@ -190,7 +190,7 @@ fn all_possibilities_for_piece_to_move(
 
     let mut check_list: HashMap<Position, bool> = HashMap::new();
 
-    let mut left_to_check = vec![
+    let mut left_to_check:Vec<(Position, Direction, u8)> = vec![
         (starting_position.clone(), Direction::Up, 1),
         (starting_position.clone(), Direction::Down, 1),
         (starting_position.clone(), Direction::Left, 1),
@@ -198,13 +198,10 @@ fn all_possibilities_for_piece_to_move(
     ];
 
     'flood_fill: while let Some((p, d, c)) = left_to_check.pop() {
-        if check_list.get(&p).is_some() {
-            continue;
-        }
         let Some(new_pos) = p.add(d) else {
             continue
         };
-        let Some(true) = check_list.get(&p) else {
+        if let Some(true) = check_list.get(&new_pos) {
             continue
         };
         for occupied_position in &tiles_in_range {
