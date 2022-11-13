@@ -59,11 +59,11 @@ impl Grid {
 
     pub(super) fn list_all_harmonies(&self) -> Vec<(Owner, Position, Position)> {
         let mut harmonie_list = Vec::new();
-        for i in 0..17 {
+        for i in -8..8 {
             let mut last_column_tile_pos_option = None;
             let mut last_row_tile_pos_option = None;
-            for j in 0..17 {
-                let Some(pos) = Position::new(i - 8, j - 8) else {
+            for j in -8..8 {
+                let Some(pos) = Position::new(i, j) else {
                         continue ;
                     };
                 if pos.is_gate() {
@@ -90,8 +90,8 @@ impl Grid {
                 }
                 last_column_tile_pos_option = Some(pos);
             }
-            for j in 0..17 {
-                let Some(pos) = Position::new(j - 8, i - 8) else {
+            for j in -8..8 {
+                let Some(pos) = Position::new(j, i) else {
                         continue ;
                     };
                 if pos.is_gate() {
@@ -126,8 +126,8 @@ impl Grid {
 impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str("    ")?;
-        for column in 0..17 {
-            write!(f, "  {:2}  ", column as isize - 8)?;
+        for column in -8..=8 {
+            write!(f, "  {:2}  ", column)?;
         }
         f.write_str("\n")?;
         for row in (0..17).rev() {

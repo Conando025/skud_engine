@@ -9,18 +9,19 @@ mod tic_tac_toe;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 
-use crate::flower_skud::Grid;
-pub use flower_skud::{Board, Move};
+pub use flower_skud::{Grid, Board, Move};
 use monte_carlo_tree_search::{engine, Node, Origin};
+use crate::monte_carlo_tree_search::Mode;
 
 fn main() {
     //get a board
     #[allow(unused_variables)]
-    let board = Board::create_test();
+    let board = Board::empty();
     println!("{}", Grid::create(board.clone()));
     //run evaluation
-    let root = engine(board, 1_000);
+    let root = engine(board, Mode::Time(Duration::from_secs(60)));
     let root_node = <Rc<RefCell<Node>> as Borrow<RefCell<Node>>>::borrow(&root).borrow();
     let sim_count = root_node.simulations;
     for child in root_node.children.iter() {
@@ -38,4 +39,5 @@ fn main() {
             );
         }
     }
+    println!("We did {} simulations", sim_count);
 }

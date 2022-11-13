@@ -1,3 +1,5 @@
+use std::ops::IndexMut;
+use rand::{thread_rng, Rng};
 use super::*;
 
 #[derive(Clone)]
@@ -53,10 +55,10 @@ impl Board {
             ),
             (
                 Tile::Flower(FlowerTile::Chrysanthemum),
-                Position::new(1, 1).unwrap(),
+                Position::new(1, 2).unwrap(),
             ),
         ]);
-        b.move_count = 2;
+        b.move_count = 1;
         b
     }
 
@@ -66,6 +68,80 @@ impl Board {
 
     pub fn moves_since_planting(&self) -> i16 {
         self.moves_since_planting
+    }
+
+    pub fn get_random_move(&self, grid: &Grid) -> Option<Move> {
+        let player =self.next_to_move();
+        if self.finished(grid, player).is_some() {
+            return None;
+        } else {
+            let (mut reserve, mut played_tiles) = match player {
+                Player::Host => {
+                    (self.reserve_host.clone(), self.played_tiles_host.clone())
+                },
+                Player::Guest => {
+                    (self.reserve_guest.clone(), self.played_tiles_guest.clone())
+                }
+            };
+            fn random_plant(grid: &Grid, reserve: &mut Vec<(Tile, u8)>) -> Option<Move> {
+                let index = thread_rng().gen_range(0..reserve.len());
+                let (Tile::Flower(t), amount) = reserve.index_mut(index);
+                if *amount == 0 {
+                    reserve.remove(index);
+                    None
+                } else {
+                    *amount -= 1;
+                    let mut plants: Vec<Move> = grid.open_gates().iter().map(|g| Move::Planting(*t, g.clone())).collect();
+                    if plants.len() > 0 {
+                        let m = plants.remove(thread_rng().gen_range(0..plants.len()));
+                        Some(m)
+                    } else {
+                        None
+                    }
+                }
+            }
+            fn random_move(grid: &Grid, board: &Board, played_tiles: &mut Vec<(Tile, Position)>) -> Option<Move> {
+                let (tile, position) = played_tiles.remove(thread_rng().gen_range(0..played_tiles.len()));
+                let possible_moves = all_possibilities_for_piece_to_move(board, grid, tile, position);
+                if possible_moves.len() == 0 {
+                    None
+                } else {
+                    let m = possible_moves.get(thread_rng().gen_range(0..possible_moves.len())).unwrap();
+                    Some(m.clone())
+                }
+            }
+            loop {
+                return if reserve.len() != 0 && played_tiles.len() != 0 {
+                    if thread_rng().gen_ratio(1, 3) {
+                        let mo = random_plant(grid, &mut reserve);
+                        if mo.is_none() {
+                            continue
+                        };
+                        mo
+                    } else {
+                        let mo = random_move(grid, self, &mut played_tiles);
+                        if mo.is_none() {
+                            continue
+                        }
+                        mo
+                    }
+                } else if reserve.len() == 0 {
+                    let mo = random_move(grid, self, &mut played_tiles);
+                    if mo.is_none() {
+                        continue
+                    }
+                    mo
+                } else if played_tiles.len() == 0 {
+                    let mo = random_plant(grid, &mut reserve);
+                    if mo.is_none() {
+                        continue
+                    };
+                    mo
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     fn guest_add_tile(&mut self, tile: Tile, position: Position) {
@@ -244,7 +320,7 @@ impl Board {
         };
         for (tile, position) in tiles_played {
             let mut moves_for_piece =
-                all_possibilities_for_piece_to_move(grid, *tile, position.clone());
+                all_possibilities_for_piece_to_move(self, grid, *tile, position.clone());
             move_set.append(&mut moves_for_piece);
         }
 
