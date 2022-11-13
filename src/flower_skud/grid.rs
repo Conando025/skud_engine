@@ -60,82 +60,102 @@ impl Grid {
     pub(super) fn list_all_harmonies(&self) -> Vec<(Owner, Position, Position)> {
         let mut harmonie_list = Vec::new();
         for i in 0..17 {
-            let mut last_column_tile: &Cell = &None;
-            let mut last_column_tile_coords = (0,0);
-            let mut last_row_tile = None;
-            let mut last_row_tile_coords = (0,0);
+            let mut last_column_tile_pos_option = None;
+            let mut last_row_tile_pos_option = None;
             for j in 0..17 {
-                let (row,column) = (i,j);
-                let new_column_tile = &self.cells[row + column * 17];
-                if self::foo(last_column_tile, new_column_tile) {
-                    harmonie_list.push((last_column_tile.unwrap().1, Position::new(last_column_tile_coords.0,last_column_tile_coords.1).unwrap(), Position::new(i as i8 - 8,j as i8 -8).unwrap()));
+                let Some(pos) = Position::new(i - 8, j - 8) else {
+                        continue ;
+                    };
+                if pos.is_gate() {
+                    last_column_tile_pos_option = None;
+                    continue;
                 }
-                let (column, row) = (i,j);
-                let new_row_tile = &self.cells[row + column * 17];
-                if self::foo(last_row_tile, new_row_tile) {
-                    harmonie_list.push((last_row_tile.unwrap().1, Position::new(last_row_tile_coords.0,last_row_tile_coords.1).unwrap(), Position::new(i as i8 - 8,j as i8 -8).unwrap()));
+                let Some((new_column_tile_type, new_column_tile_owner)) = self.index(&pos) else {
+                        continue ;
+                    };
+                let Some(last_column_tile_pos) = &last_column_tile_pos_option else {
+                        last_column_tile_pos_option = Some(pos);
+                        continue ;
+                    };
+                let (last_column_tile_type, last_column_tile_owner) =
+                    self.index(last_column_tile_pos).clone().unwrap();
+                let same_owner = *new_column_tile_owner == last_column_tile_owner;
+                let tiles_harmonize = last_column_tile_type.harmonizes(new_column_tile_type);
+                if same_owner && tiles_harmonize {
+                    harmonie_list.push((
+                        last_column_tile_owner,
+                        last_column_tile_pos.clone(),
+                        pos.clone(),
+                    ));
                 }
+                last_column_tile_pos_option = Some(pos);
+            }
+            for j in 0..17 {
+                let Some(pos) = Position::new(j - 8, i - 8) else {
+                        continue ;
+                    };
+                if pos.is_gate() {
+                    last_row_tile_pos_option = None;
+                    continue;
+                }
+                let Some((new_row_tile_type, new_row_tile_owner)) = self.index(&pos) else {
+                        continue ;
+                    };
+                let Some(last_row_tile_pos) = &last_row_tile_pos_option else {
+                        last_row_tile_pos_option = Some(pos);
+                        continue ;
+                    };
+                let (last_row_tile_type, last_row_tile_owner) =
+                    self.index(last_row_tile_pos).clone().unwrap();
+                let same_owner = *new_row_tile_owner == last_row_tile_owner;
+                let tiles_harmonize = last_row_tile_type.harmonizes(new_row_tile_type);
+                if same_owner && tiles_harmonize {
+                    harmonie_list.push((
+                        last_row_tile_owner,
+                        last_row_tile_pos.clone(),
+                        pos.clone(),
+                    ));
+                }
+                last_row_tile_pos_option = Some(pos);
             }
         }
         harmonie_list
     }
-
-    fn foo(last_column_tile: &mut Cell, new_column_tile: &Cell) -> bool {
-        if let Some((new_column_tile_type, new_column_tile_owner)) = new_column_tile {
-            if let Some((last_column_tile_type, last_column_tile_owner)) = last_column_tile {
-                if *new_column_tile_owner == *last_column_tile_owner {
-                    last_column_tile_type.harmonizes(new_column_tile_type)
-                }
-            }
-            *last_column_tile = new_column_tile.clone();
-        }
-        false
-    }
 }
 
-impl std::fmt::Debug for Grid {
+impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let mut representation: String = "".to_owned();
-        for row in 0..17 {
-            representation += "[ ";
-            for column in 0..17 {
-                representation += " [ ";
-                if let Some((Tile::Flower(flower), o)) = &self.cells[row + column * 17] {
-                    match flower {
-                        FlowerTile::Rose => {
-                            representation += " R3";
-                        }
-                        FlowerTile::Chrysanthemum => {
-                            representation += " R4";
-                        }
-                        FlowerTile::Rhododendron => {
-                            representation += " R5";
-                        }
-                        FlowerTile::Jasmine => {
-                            representation += " W3";
-                        }
-                        FlowerTile::Lily => {
-                            representation += " W4";
-                        }
-                        FlowerTile::WhiteJade => {
-                            representation += " W5";
-                        }
-                    }
-                    match o {
-                        Owner::Host => {
-                            representation += ",H ";
-                        }
-                        Owner::Guest => {
-                            representation += ",G ";
-                        }
-                    }
-                } else {
-                    representation += "      "
-                }
-                representation += "]";
-            }
-            representation += " ]\n";
+        f.write_str("    ")?;
+        for column in 0..17 {
+            write!(f, "  {:2}  ", column as isize - 8)?;
         }
-        write!(f, "{}", representation)
+        f.write_str("\n")?;
+        for row in (0..17).rev() {
+            write!(f, "{:<2}: ", row as isize - 8)?;
+            for column in 0..17 {
+                if let Some((Tile::Flower(flower), o)) = &self.cells[column + row * 17] {
+                    write!(
+                        f,
+                        "[{} {}]",
+                        match flower {
+                            FlowerTile::Rose => "R3",
+                            FlowerTile::Chrysanthemum => "R4",
+                            FlowerTile::Rhododendron => "R5",
+                            FlowerTile::Jasmine => "W3",
+                            FlowerTile::Lily => "W4",
+                            FlowerTile::WhiteJade => "W5",
+                        },
+                        match o {
+                            &Owner::Host => "H",
+                            &Owner::Guest => "G",
+                        }
+                    )?;
+                } else {
+                    f.write_str("[    ]")?;
+                }
+            }
+            f.write_str("\n")?;
+        }
+        std::fmt::Result::Ok(())
     }
 }

@@ -10,13 +10,15 @@ use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::flower_skud::Grid;
 pub use flower_skud::{Board, Move};
 use monte_carlo_tree_search::{engine, Node, Origin};
 
 fn main() {
     //get a board
     #[allow(unused_variables)]
-    let board = Board::empty();
+    let board = Board::create_test();
+    println!("{}", Grid::create(board.clone()));
     //run evaluation
     let root = engine(board, 1_000);
     let root_node = <Rc<RefCell<Node>> as Borrow<RefCell<Node>>>::borrow(&root).borrow();
@@ -25,7 +27,7 @@ fn main() {
         let child_node = <Rc<RefCell<Node>> as Borrow<RefCell<Node>>>::borrow(&child).borrow();
         if let Origin::Parent(_, the_move) = &child_node.origin {
             println!(
-                "[ {:>6.3} | {:>6.3} | {:>6.3}]  {:>7.3}% for {:?}",
+                "[ {:0>7.3} | {:0>7.3} | {:0>7.3}] {:0>7.3}% for {:?}",
                 child_node.win_count as f64 / child_node.simulations as f64 * 100.0,
                 child_node.draw_count as f64 / child_node.simulations as f64 * 100.0,
                 (child_node.simulations - child_node.win_count - child_node.draw_count) as f64

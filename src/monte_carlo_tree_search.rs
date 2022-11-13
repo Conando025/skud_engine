@@ -146,10 +146,12 @@ fn simulation_phase(mut board: Board) -> Output {
         let next_move = possible_next_moves
             .get(thread_rng().gen_range(0..possible_next_moves.len()))
             .unwrap();
+        #[cfg(debug_assertions)]
+        println!("{:?}", next_move);
         grid.apply_move(next_move.clone(), board.next_to_move());
         board.apply_move(next_move.clone());
         #[cfg(debug_assertions)]
-        println!("{:?}", grid);
+        println!("{}", grid);
         possible_next_moves = board.all_legal_moves(&mut grid);
     }
     board.finished(&grid, player).unwrap_or(Output::Draw) //the or is for petty draws

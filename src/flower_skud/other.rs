@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum Owner {
     Host,
     Guest,
@@ -6,11 +6,21 @@ pub enum Owner {
 
 pub type Cell = Option<(Tile, Owner)>;
 
+#[derive(Copy, Clone)]
 pub enum Direction {
     Up,
     Down,
     Left,
     Right,
+}
+
+impl Direction {
+    pub const ALL: [Direction; 4] = [
+        Direction::Up,
+        Direction::Down,
+        Direction::Left,
+        Direction::Right,
+    ];
 }
 
 impl Tile {
@@ -29,13 +39,17 @@ impl Tile {
     pub fn harmonizes(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (&Tile::Flower(FlowerTile::Rose), &Tile::Flower(FlowerTile::Chrysanthemum)) => true,
-            (&Tile::Flower(FlowerTile::Chrysanthemum), &Tile::Flower(FlowerTile::Rhododendron)) => true,
+            (&Tile::Flower(FlowerTile::Chrysanthemum), &Tile::Flower(FlowerTile::Rhododendron)) => {
+                true
+            }
             (&Tile::Flower(FlowerTile::Rhododendron), &Tile::Flower(FlowerTile::Jasmine)) => true,
             (&Tile::Flower(FlowerTile::Jasmine), &Tile::Flower(FlowerTile::Lily)) => true,
             (&Tile::Flower(FlowerTile::Lily), &Tile::Flower(FlowerTile::WhiteJade)) => true,
             (&Tile::Flower(FlowerTile::WhiteJade), &Tile::Flower(FlowerTile::Rose)) => true,
             (&Tile::Flower(FlowerTile::Chrysanthemum), &Tile::Flower(FlowerTile::Rose)) => true,
-            (&Tile::Flower(FlowerTile::Rhododendron), &Tile::Flower(FlowerTile::Chrysanthemum)) => true,
+            (&Tile::Flower(FlowerTile::Rhododendron), &Tile::Flower(FlowerTile::Chrysanthemum)) => {
+                true
+            }
             (&Tile::Flower(FlowerTile::Jasmine), &Tile::Flower(FlowerTile::Rhododendron)) => true,
             (&Tile::Flower(FlowerTile::Lily), &Tile::Flower(FlowerTile::Jasmine)) => true,
             (&Tile::Flower(FlowerTile::WhiteJade), &Tile::Flower(FlowerTile::Lily)) => true,
@@ -60,6 +74,15 @@ pub struct Position {
 }
 
 impl Position {
+    pub fn is_gate(&self) -> bool {
+        for gate in Self::GATES {
+            if gate == *self {
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub const GATES: [Position; 4] = [
         Position { x: 8, y: 0 },
         Position { x: -8, y: 0 },
@@ -109,29 +132,55 @@ pub enum FlowerTile {
 }
 
 #[derive(Eq, PartialEq, Copy, Clone)]
-struct Fraction {
+pub(super) struct Fraction {
     nominator: isize,
-    denominator: usize,
+    denominator: isize,
 }
 
 impl Fraction {
-    pub fn new(nominator: isize, denominator: usize) -> Self {
-        Fraction{nominator, denominator}
+    pub fn new(nominator: isize, denominator: isize) -> Self {
+        Fraction {
+            nominator,
+            denominator,
+        }
     }
 
-    const NULL:Self = Fraction{nominator:0 , denominator: 0};
+    pub const ZERO: Self = Fraction {
+        nominator: 0,
+        denominator: 0,
+    };
 }
 
 impl std::ops::Add for Fraction {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
-        let mut nominator = self.denominator as isize * rhs.nominator + self.nominator * rhs.denominator as isize;
+        let mut nominator = self.denominator * rhs.nominator + self.nominator * rhs.denominator;
         let mut denominator = self.denominator * rhs.denominator;
         let k = denominator % nominator;
-        if k==0 {
-            nominator /=k;
-            denominator /=k;
+        if k == 0 {
+            nominator /= k;
+            denominator /= k;
         }
-        Fraction{nominator,denominator}
+        Fraction {
+            nominator,
+            denominator,
+        }
+    }
+}
+
+impl std::ops::Sub for Fraction {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        let mut nominator = self.nominator * rhs.denominator - self.denominator * rhs.nominator;
+        let mut denominator = self.denominator * rhs.denominator;
+        let k = denominator % nominator;
+        if k == 0 {
+            nominator /= k;
+            denominator /= k;
+        }
+        Fraction {
+            nominator,
+            denominator,
+        }
     }
 }

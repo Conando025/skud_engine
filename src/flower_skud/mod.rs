@@ -1,5 +1,6 @@
 use crate::monte_carlo_tree_search::{Output, Player};
-use std::collections::HashMap;
+use std::borrow::Borrow;
+use std::collections::{HashMap, VecDeque};
 use std::ops::Div;
 use std::vec;
 
@@ -21,232 +22,112 @@ fn all_possibilities_for_piece_to_move(
         Tile::Flower(FlowerTile::Rhododendron) | Tile::Flower(FlowerTile::WhiteJade) => 5,
     };
 
-    let (position_x, position_y) = starting_position.value();
-
-    let mut possible_positions: Vec<Position> = Vec::new();
-    let mut tiles_in_range = Vec::new();
-
-    for (index, cell) in grid.cells.iter_mut().enumerate() {
-        let (cell_x, cell_y): (i8, i8) = ((index % 17) as i8 - 8, index.div(17) as i8 - 8);
-        let Some(target_position) = Position::new(cell_x, cell_y) else {
-            continue;
-        };
-        let (x_rel, y_rel) = (cell_x - position_x, cell_y - position_y);
-        if (x_rel.abs() + y_rel.abs()) <= move_range && (x_rel != 0 || y_rel != 0) {
-            if let &mut Some(_) = cell {
-                tiles_in_range.push(target_position);
-                continue;
-            }
-            if cell_x.abs() + cell_y.abs() <= 6 {
-                match (moving_tile_type, cell_x as i16 * cell_y as i16) {
-                    (
-                        Tile::Flower(FlowerTile::Rose)
-                        | Tile::Flower(FlowerTile::Chrysanthemum)
-                        | Tile::Flower(FlowerTile::Rhododendron),
-                        product,
-                    ) => {
-                        if product < 0 {
-                            continue;
-                        }
-                    }
-                    (
-                        Tile::Flower(FlowerTile::Jasmine)
-                        | Tile::Flower(FlowerTile::Lily)
-                        | Tile::Flower(FlowerTile::WhiteJade),
-                        product,
-                    ) => {
-                        if product > 0 {
-                            continue;
-                        }
-                    }
-                };
-            }
-            if (cell_x, cell_y) == (8, 0)
-                || (cell_x, cell_y) == (0, 8)
-                || (cell_x, cell_y) == (-8, 0)
-                || (cell_x, cell_y) == (0, -8)
-            {
-                continue;
-            };
-            possible_positions.push(target_position);
-        }
-    }
-
-    let tile_data = grid.index(&starting_position).clone();
-    *grid.index_mut(&starting_position) = None;
-
-    possible_positions = possible_positions
-        .into_iter()
-        .filter(|target_position| {
-            let cell = grid.index_mut(target_position);
-            let cell_data = cell.clone();
-            *cell = tile_data.clone();
-            //check for clash-traps
-            {
-                let mut tile_left = None;
-                let mut pos_to_check = starting_position.clone();
-                while let (None, Some(p)) =
-                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Left))
-                {
-                    pos_to_check = p;
-                }
-                if let Some((t, _)) = grid.index(&pos_to_check) {
-                    tile_left = Some(*t);
-                }
-                if let Some(tile_left) = tile_left {
-                    pos_to_check = starting_position.clone();
-                    while let (None, Some(p)) = (
-                        grid.index(&pos_to_check),
-                        pos_to_check.add(Direction::Right),
-                    ) {
-                        pos_to_check = p;
-                    }
-                    if let Some((t, _)) = grid.index(&pos_to_check) {
-                        if tile_left.clashes(t) {
-                            *grid.index_mut(target_position) = cell_data;
-                            return false;
-                        }
-                    }
-                }
-
-                let mut tile_down = None;
-                pos_to_check = starting_position.clone();
-                while let (None, Some(p)) =
-                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Down))
-                {
-                    pos_to_check = p;
-                }
-                if let Some((t, _)) = grid.index(&pos_to_check) {
-                    tile_down = Some(*t);
-                }
-                if let Some(tile_down) = tile_down {
-                    pos_to_check = starting_position.clone();
-                    while let (None, Some(p)) =
-                        (grid.index(&pos_to_check), pos_to_check.add(Direction::Up))
-                    {
-                        pos_to_check = p;
-                    }
-                    if let Some((t, _)) = grid.index(&pos_to_check) {
-                        if tile_down.clashes(t) {
-                            *grid.index_mut(target_position) = cell_data;
-                            return false;
-                        }
-                    }
-                }
-            }
-            *grid.index_mut(target_position) = cell_data;
-            //check for new clashes
-            {
-                let mut pos_to_check = target_position.clone();
-                while let (None, Some(p)) =
-                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Down))
-                {
-                    pos_to_check = p;
-                }
-                if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES
-                        .iter()
-                        .position(|gate_pos| *gate_pos == pos_to_check)
-                        .is_none()
-                        || moving_tile_type.clashes(t)
-                    {
-                        return false;
-                    }
-                }
-                pos_to_check = target_position.clone();
-                while let (None, Some(p)) =
-                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Up))
-                {
-                    pos_to_check = p;
-                }
-                if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES
-                        .iter()
-                        .position(|gate_pos| *gate_pos == pos_to_check)
-                        .is_none()
-                        || moving_tile_type.clashes(t)
-                    {
-                        return false;
-                    }
-                }
-                pos_to_check = target_position.clone();
-                while let (None, Some(p)) =
-                    (grid.index(&pos_to_check), pos_to_check.add(Direction::Left))
-                {
-                    pos_to_check = p;
-                }
-                if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES
-                        .iter()
-                        .position(|gate_pos| *gate_pos == pos_to_check)
-                        .is_none()
-                        || moving_tile_type.clashes(t)
-                    {
-                        return false;
-                    }
-                }
-                pos_to_check = target_position.clone();
-                while let (None, Some(p)) = (
-                    grid.index(&pos_to_check),
-                    pos_to_check.add(Direction::Right),
-                ) {
-                    pos_to_check = p;
-                }
-                if let Some((t, _)) = grid.index(&pos_to_check) {
-                    if Position::GATES
-                        .iter()
-                        .position(|gate_pos| *gate_pos == pos_to_check)
-                        .is_none()
-                        || moving_tile_type.clashes(t)
-                    {
-                        return false;
-                    }
-                }
-            }
-            true
-        })
-        .collect();
-
-    *grid.index_mut(&starting_position) = tile_data.clone();
-
     let mut check_list: HashMap<Position, bool> = HashMap::new();
 
-    let mut left_to_check: Vec<(Position, Direction, u8)> = vec![
+    let mut left_to_check: VecDeque<(Position, Direction, u8)> = vec![
         (starting_position.clone(), Direction::Up, 1),
         (starting_position.clone(), Direction::Down, 1),
         (starting_position.clone(), Direction::Left, 1),
         (starting_position.clone(), Direction::Right, 1),
-    ];
+    ]
+    .into();
 
-    'flood_fill: while let Some((p, d, c)) = left_to_check.pop() {
+    //flood fill
+    while let Some((p, d, c)) = left_to_check.pop_front() {
         let Some(new_pos) = p.add(d) else {
-            continue
+            continue;
         };
         if let Some(true) = check_list.get(&new_pos) {
             continue;
         };
-        for occupied_position in &tiles_in_range {
-            if new_pos == *occupied_position {
-                check_list.insert(new_pos.clone(), false);
-                continue 'flood_fill;
-            }
+        if let Some(_t) = grid.index(&new_pos) {
+            check_list.insert(new_pos.clone(), false);
+            continue;
         }
         check_list.insert(new_pos.clone(), true);
-        left_to_check.push((new_pos.clone(), Direction::Up, c + 1));
-        left_to_check.push((new_pos.clone(), Direction::Down, c + 1));
-        left_to_check.push((new_pos.clone(), Direction::Left, c + 1));
-        left_to_check.push((new_pos, Direction::Right, c + 1));
+        if c < move_range {
+            left_to_check.push_back((new_pos.clone(), Direction::Up, c + 1));
+            left_to_check.push_back((new_pos.clone(), Direction::Down, c + 1));
+            left_to_check.push_back((new_pos.clone(), Direction::Left, c + 1));
+            left_to_check.push_back((new_pos.clone(), Direction::Right, c + 1));
+        }
     }
 
     let mut legal_moves = Vec::new();
-    for possible_position in possible_positions {
-        if *check_list.get(&possible_position).unwrap_or(&false) {
+    for (possible_position, reachable) in check_list.into_iter() {
+        if reachable
+            && is_landable_for(possible_position.clone(), moving_tile_type)
+            && !creates_a_clash(
+                grid,
+                moving_tile_type,
+                starting_position.clone(),
+                possible_position.clone(),
+            )
+        {
             legal_moves.push(Move::Arranging(
                 starting_position.clone(),
-                possible_position,
+                possible_position.clone(),
             ));
         }
     }
 
     legal_moves
+}
+
+fn creates_a_clash(
+    grid: &mut Grid,
+    moving_tile_type: Tile,
+    starting_position: Position,
+    end_position: Position,
+) -> bool {
+    for d in Direction::ALL {
+        let mut move_in_d = Some(end_position.clone());
+        while move_in_d.is_some() && grid.index(&move_in_d.clone().unwrap()).is_none() {
+            move_in_d = move_in_d.unwrap().add(d);
+        }
+        if move_in_d.is_none() {
+            continue;
+        }
+        let move_in_d_pos = move_in_d.unwrap();
+        if move_in_d_pos.is_gate() {
+            continue;
+        }
+        let Some((next_tile_in_direction, _owner)) = grid.index(&move_in_d_pos) else {
+            continue;
+        };
+
+        if next_tile_in_direction.clashes(&moving_tile_type) {
+            return true;
+        }
+    }
+    //todo("Clash traps")
+    false
+}
+
+fn is_landable_for(p: Position, t: Tile) -> bool {
+    if p.is_gate() {
+        return false;
+    }
+    let (x, y) = p.value();
+    //check gardens
+    if x.abs() + y.abs() <= 6 {
+        match t {
+            Tile::Flower(FlowerTile::Rose)
+            | Tile::Flower(FlowerTile::Chrysanthemum)
+            | Tile::Flower(FlowerTile::Rhododendron) => {
+                if 0 > x as isize * y as isize {
+                    return false;
+                }
+            }
+            Tile::Flower(FlowerTile::Jasmine)
+            | Tile::Flower(FlowerTile::Lily)
+            | Tile::Flower(FlowerTile::WhiteJade) => {
+                if x as isize * y as isize > 0 {
+                    return false;
+                }
+            }
+        }
+    }
+
+    true
 }

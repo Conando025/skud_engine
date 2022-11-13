@@ -36,6 +36,30 @@ impl Board {
         }
     }
 
+    pub fn create_test() -> Self {
+        let mut b = Self::empty();
+        b.played_tiles_host.append(&mut vec![
+            (
+                Tile::Flower(FlowerTile::Rose),
+                Position::new(-1, 1).unwrap(),
+            ),
+            (
+                Tile::Flower(FlowerTile::Rose),
+                Position::new(1, -1).unwrap(),
+            ),
+            (
+                Tile::Flower(FlowerTile::Chrysanthemum),
+                Position::new(-1, -1).unwrap(),
+            ),
+            (
+                Tile::Flower(FlowerTile::Chrysanthemum),
+                Position::new(1, 1).unwrap(),
+            ),
+        ]);
+        b.move_count = 2;
+        b
+    }
+
     pub fn move_count(&self) -> i16 {
         self.move_count
     }
@@ -63,45 +87,160 @@ impl Board {
 
         for harmonie in harmonie_list.into_iter() {
             let (owner, p1, p2) = harmonie;
-            let ((p1_x, p1_y),(p2_x, p2_y)) = (p1.value(), p2.value());
+            let ((p1_x, p1_y), (p2_x, p2_y)) = (p1.value(), p2.value());
             match owner {
                 Owner::Host => {
-                    if (p1_y as isize) * (p2_y as isize) < 0 || (p1_x as isize) * (p2_x as isize) < 0 {
+                    if (p1_y as isize) * (p2_y as isize) < 0
+                        || (p1_x as isize) * (p2_x as isize) < 0
+                    {
                         host_crossing_harmonies += 1;
                     }
-                    host_harmonies.push((p1,p2));
+                    host_harmonies.push((p1, p2));
                 }
                 Owner::Guest => {
-                    if (p1_y as isize) * (p2_y as isize) < 0 || (p1_x as isize) * (p2_x as isize) < 0 {
+                    if (p1_y as isize) * (p2_y as isize) < 0
+                        || (p1_x as isize) * (p2_x as isize) < 0
+                    {
                         guest_crossing_harmonies += 1;
                     }
-                    guest_harmonies.push((p1,p2));
+                    guest_harmonies.push((p1, p2));
                 }
             }
         }
 
-        todo!("Harmony rings");
+        fn finish_ring(
+            harmonies: Vec<(Position, Position)>,
+            ring_fragment: Vec<Position>,
+        ) -> Vec<Vec<Position>> {
+            if ring_fragment.len() == 0 {
+                panic!("a ring_fragment need at least one element")
+            }
+            let mut rings = Vec::new();
+            for (index, harmony) in harmonies.iter().enumerate() {
+                let harmony_matches_rings_start = harmony.0 == *ring_fragment.first().unwrap()
+                    || harmony.1 == *ring_fragment.first().unwrap();
+                let harmony_matches_rings_end = harmony.0 == *ring_fragment.last().unwrap()
+                    || harmony.1 == *ring_fragment.last().unwrap();
+                if harmony_matches_rings_start && harmony_matches_rings_end {
+                    rings.push(ring_fragment.clone());
+                } else if harmony_matches_rings_start {
+                    let (mut h, mut r) = (harmonies.clone(), ring_fragment.clone());
+                    h.remove(index);
+                    if harmony.0 == *ring_fragment.first().unwrap() {
+                        r.insert(0, harmony.1.clone());
+                    } else {
+                        r.insert(0, harmony.0.clone());
+                    }
+                    rings.append(&mut finish_ring(h, r));
+                } else if harmony_matches_rings_end {
+                    let (mut h, mut r) = (harmonies.clone(), ring_fragment.clone());
+                    h.remove(index);
+                    if harmony.0 == *ring_fragment.last().unwrap() {
+                        r.push(harmony.1.clone());
+                    } else {
+                        r.push(harmony.0.clone());
+                    }
+                    rings.append(&mut finish_ring(h, r));
+                }
+            }
+            rings
+        }
+
+        fn ring_contains_center(ring: Vec<Position>) -> bool {
+            let end_pos = ring
+                .into_iter()
+                .map(|p| p.value())
+                .reduce(|running_total, p| (running_total.0 + p.0, running_total.1 + p.1))
+                .unwrap();
+            return end_pos.0 == 0 && end_pos.1 == 0;
+        }
+
+        if guest_harmonies.len() + host_harmonies.len() > 0 {
+            let mut guest_won = false;
+            'test_harmony: while let Some(harmony) = guest_harmonies.pop() {
+                let r = vec![harmony.0, harmony.1];
+                for ring in finish_ring(guest_harmonies.clone(), r) {
+                    if ring_contains_center(ring) {
+                        guest_won = true;
+                        break 'test_harmony;
+                    }
+                }
+            }
+
+            let mut host_won = false;
+            'test_harmony: while let Some(harmony) = host_harmonies.pop() {
+                let r = vec![harmony.0, harmony.1];
+                for ring in finish_ring(host_harmonies.clone(), r) {
+                    if ring_contains_center(ring) {
+                        host_won = true;
+                        break 'test_harmony;
+                    }
+                }
+            }
+
+            if host_won || guest_won {
+                return Some(if host_won && guest_won {
+                    Output::Draw
+                } else if host_won && perspective == Player::Host {
+                    Output::Win
+                } else if guest_won && perspective == Player::Guest {
+                    Output::Win
+                } else {
+                    Output::Loss
+                });
+            }
+        }
+
+        let reserve_size_guest = self
+            .reserve_guest
+            .iter()
+            .map(|(_, c)| *c)
+            .reduce(|total, c| total + c)
+            .unwrap();
+        let reserve_size_host = self
+            .reserve_host
+            .iter()
+            .map(|(_, c)| *c)
+            .reduce(|total, c| total + c)
+            .unwrap();
+
+        if reserve_size_guest == 0 || reserve_size_host == 0 {
+            if guest_crossing_harmonies == host_crossing_harmonies {
+                return Some(Output::Draw);
+            }
+            return Some(match perspective {
+                Player::Guest => {
+                    if guest_crossing_harmonies > host_crossing_harmonies {
+                        Output::Win
+                    } else {
+                        Output::Loss
+                    }
+                }
+                Player::Host => {
+                    if guest_crossing_harmonies < host_crossing_harmonies {
+                        Output::Win
+                    } else {
+                        Output::Loss
+                    }
+                }
+            });
+        }
 
         if self.moves_since_planting >= 50 {
             return Some(Output::Draw);
         };
         return None;
-
     }
 
     pub fn all_legal_moves(&self, grid: &mut Grid) -> Moves {
         let mut move_set: Moves = Vec::new();
-        if self.finished(grid, next_to_move()).is_some() {
+        if self.finished(grid, self.next_to_move()).is_some() {
             return move_set;
         }
 
         let (tiles_played, reserve) = match self.next_to_move() {
-            Player::Guest => {
-                (&self.played_tiles_guest, &self.reserve_guest)
-            }
-            Player::Host => {
-                (&self.played_tiles_host, &self.reserve_host)
-            }
+            Player::Guest => (&self.played_tiles_guest, &self.reserve_guest),
+            Player::Host => (&self.played_tiles_host, &self.reserve_host),
         };
         for (tile, position) in tiles_played {
             let mut moves_for_piece =
@@ -162,7 +301,7 @@ impl Board {
                     }
                 } else {
                     //Turn Host
-                    for (_tile_type, position) in &mut self.played_tiles_guest {
+                    for (_tile_type, position) in &mut self.played_tiles_host {
                         if *position == start {
                             *position = end;
                             break;
