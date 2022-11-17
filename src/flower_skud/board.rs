@@ -1,6 +1,6 @@
-use std::ops::IndexMut;
-use rand::{thread_rng, Rng};
 use super::*;
+use rand::{thread_rng, Rng};
+use std::ops::IndexMut;
 
 #[derive(Clone)]
 pub struct Board {
@@ -71,76 +71,81 @@ impl Board {
     }
 
     pub fn get_random_move(&self, grid: &Grid) -> Option<Move> {
-        let player =self.next_to_move();
-        if self.finished(grid, player).is_some() {
-            return None;
-        } else {
-            let (mut reserve, mut played_tiles) = match player {
-                Player::Host => {
-                    (self.reserve_host.clone(), self.played_tiles_host.clone())
-                },
-                Player::Guest => {
-                    (self.reserve_guest.clone(), self.played_tiles_guest.clone())
-                }
-            };
-            fn random_plant(grid: &Grid, reserve: &mut Vec<(Tile, u8)>) -> Option<Move> {
-                let index = thread_rng().gen_range(0..reserve.len());
-                let (Tile::Flower(t), amount) = reserve.index_mut(index);
-                if *amount == 0 {
-                    reserve.remove(index);
-                    None
+        let player = self.next_to_move();
+        let (mut reserve, mut played_tiles) = match player {
+            Player::Host => (self.reserve_host.clone(), self.played_tiles_host.clone()),
+            Player::Guest => (self.reserve_guest.clone(), self.played_tiles_guest.clone()),
+        };
+        fn random_plant(grid: &Grid, reserve: &mut Vec<(Tile, u8)>) -> Option<Move> {
+            let index = thread_rng().gen_range(0..reserve.len());
+            let (Tile::Flower(t), amount) = reserve.index_mut(index);
+            #[cfg(debug_assertions)]
+            println!("{amount}");
+            if *amount == 0 {
+                reserve.remove(index);
+                None
+            } else {
+                let mut plants: Vec<Move> = grid
+                    .open_gates()
+                    .iter()
+                    .map(|g| Move::Planting(*t, g.clone()))
+                    .collect();
+                if plants.len() > 0 {
+                    let m = plants.remove(thread_rng().gen_range(0..plants.len()));
+                    Some(m)
                 } else {
-                    *amount -= 1;
-                    let mut plants: Vec<Move> = grid.open_gates().iter().map(|g| Move::Planting(*t, g.clone())).collect();
-                    if plants.len() > 0 {
-                        let m = plants.remove(thread_rng().gen_range(0..plants.len()));
-                        Some(m)
-                    } else {
-                        None
-                    }
+                    *reserve = Vec::new();
+                    None
                 }
             }
-            fn random_move(grid: &Grid, board: &Board, played_tiles: &mut Vec<(Tile, Position)>) -> Option<Move> {
-                let (tile, position) = played_tiles.remove(thread_rng().gen_range(0..played_tiles.len()));
-                let possible_moves = all_possibilities_for_piece_to_move(board, grid, tile, position);
-                if possible_moves.len() == 0 {
-                    None
-                } else {
-                    let m = possible_moves.get(thread_rng().gen_range(0..possible_moves.len())).unwrap();
-                    Some(m.clone())
-                }
+        }
+        fn random_move(
+            grid: &Grid,
+            board: &Board,
+            played_tiles: &mut Vec<(Tile, Position)>,
+        ) -> Option<Move> {
+            let (tile, position) =
+                played_tiles.remove(thread_rng().gen_range(0..played_tiles.len()));
+            let possible_moves = all_possibilities_for_piece_to_move(board, grid, tile, position);
+            if possible_moves.len() == 0 {
+                None
+            } else {
+                let m = possible_moves
+                    .get(thread_rng().gen_range(0..possible_moves.len()))
+                    .unwrap();
+                Some(m.clone())
             }
-            loop {
-                return if reserve.len() != 0 && played_tiles.len() != 0 {
-                    if thread_rng().gen_ratio(1, 3) {
-                        let mo = random_plant(grid, &mut reserve);
-                        if mo.is_none() {
-                            continue
-                        };
-                        mo
-                    } else {
-                        let mo = random_move(grid, self, &mut played_tiles);
-                        if mo.is_none() {
-                            continue
-                        }
-                        mo
-                    }
-                } else if reserve.len() == 0 {
-                    let mo = random_move(grid, self, &mut played_tiles);
-                    if mo.is_none() {
-                        continue
-                    }
-                    mo
-                } else if played_tiles.len() == 0 {
+        }
+        loop {
+            return if reserve.len() > 0 && played_tiles.len() > 0 {
+                if thread_rng().gen_ratio(1, 3) {
                     let mo = random_plant(grid, &mut reserve);
                     if mo.is_none() {
-                        continue
+                        continue;
                     };
                     mo
                 } else {
-                    None
+                    let mo = random_move(grid, self, &mut played_tiles);
+                    if mo.is_none() {
+                        continue;
+                    }
+                    mo
                 }
-            }
+            } else if reserve.len() == 0 {
+                let mo = random_move(grid, self, &mut played_tiles);
+                if mo.is_none() {
+                    continue;
+                }
+                mo
+            } else if played_tiles.len() == 0 {
+                let mo = random_plant(grid, &mut reserve);
+                if mo.is_none() {
+                    continue;
+                };
+                mo
+            } else {
+                None
+            };
         }
     }
 
@@ -154,8 +159,11 @@ impl Board {
         }
     }
 
-    pub fn finished(&self, grid: &Grid, perspective: Player) -> Option<Output> {
-        let harmonie_list = grid.list_all_harmonies();
+    pub fn finished(
+        &self,
+        harmonie_list: Vec<(Owner, Position, Position)>,
+        perspective: Player,
+    ) -> Option<Output> {
         let mut guest_harmonies = Vec::new();
         let mut guest_crossing_harmonies = 0;
         let mut host_harmonies = Vec::new();
@@ -191,44 +199,53 @@ impl Board {
             if ring_fragment.len() == 0 {
                 panic!("a ring_fragment need at least one element")
             }
+            if harmonies.len() < 3 {
+                return Vec::new();
+            }
             let mut rings = Vec::new();
             for (index, harmony) in harmonies.iter().enumerate() {
-                let harmony_matches_rings_start = harmony.0 == *ring_fragment.first().unwrap()
-                    || harmony.1 == *ring_fragment.first().unwrap();
-                let harmony_matches_rings_end = harmony.0 == *ring_fragment.last().unwrap()
-                    || harmony.1 == *ring_fragment.last().unwrap();
+                let fragment_start = ring_fragment.first().unwrap();
+                let fragment_end = ring_fragment.last().unwrap();
+                let harmony_matches_rings_start = harmony.0 == *fragment_start || harmony.1 == *fragment_start;
+                let harmony_matches_rings_end = harmony.0 == *fragment_end || harmony.1 == *fragment_end;
                 if harmony_matches_rings_start && harmony_matches_rings_end {
                     rings.push(ring_fragment.clone());
-                } else if harmony_matches_rings_start {
-                    let (mut h, mut r) = (harmonies.clone(), ring_fragment.clone());
-                    h.remove(index);
-                    if harmony.0 == *ring_fragment.first().unwrap() {
-                        r.insert(0, harmony.1.clone());
-                    } else {
-                        r.insert(0, harmony.0.clone());
-                    }
-                    rings.append(&mut finish_ring(h, r));
-                } else if harmony_matches_rings_end {
-                    let (mut h, mut r) = (harmonies.clone(), ring_fragment.clone());
-                    h.remove(index);
-                    if harmony.0 == *ring_fragment.last().unwrap() {
-                        r.push(harmony.1.clone());
-                    } else {
-                        r.push(harmony.0.clone());
-                    }
-                    rings.append(&mut finish_ring(h, r));
+                    continue;
                 }
+                let fragment_piece = if harmony_matches_rings_start {
+                    fragment_start
+                } else if harmony_matches_rings_end {
+                    fragment_end
+                } else {
+                    continue;
+                };
+                let (mut h, mut r) = (harmonies.clone(), ring_fragment.clone());
+                h.remove(index);
+                if harmony.0 == *fragment_piece {
+                    r.push(harmony.1.clone());
+                } else {
+                    r.push(harmony.0.clone());
+                }
+                let mut rings_found = finish_ring(h, r);
+                rings.append(&mut rings_found);
             }
             rings
         }
 
         fn ring_contains_center(ring: Vec<Position>) -> bool {
-            let end_pos = ring
-                .into_iter()
-                .map(|p| p.value())
-                .reduce(|running_total, p| (running_total.0 + p.0, running_total.1 + p.1))
-                .unwrap();
-            return end_pos.0 == 0 && end_pos.1 == 0;
+            let mut angle:f64 = 0.0;
+            for i in 0..ring.len() {
+                let start =  ring[i].value();
+                let start = (start.0 as isize, start.1 as isize);
+                let end =  ring[(i+1) % ring.len()].value();
+                let end = (end.0 as isize, end.1 as isize);
+                fn magnitude(v: (isize, isize)) -> f64 {
+                    ((v.0 * v.0 + v.1 * v.1) as f64).sqrt()
+                }
+                let sin_angle = (start.0 * end.1 - start.1 * end.0) as f64 / (magnitude(start) * magnitude(end));
+                angle += sin_angle.asin();
+            }
+            angle.abs() > std::f64::consts::PI
         }
 
         if guest_harmonies.len() + host_harmonies.len() > 0 {
@@ -310,10 +327,6 @@ impl Board {
 
     pub fn all_legal_moves(&self, grid: &mut Grid) -> Moves {
         let mut move_set: Moves = Vec::new();
-        if self.finished(grid, self.next_to_move()).is_some() {
-            return move_set;
-        }
-
         let (tiles_played, reserve) = match self.next_to_move() {
             Player::Guest => (&self.played_tiles_guest, &self.reserve_guest),
             Player::Host => (&self.played_tiles_host, &self.reserve_host),
