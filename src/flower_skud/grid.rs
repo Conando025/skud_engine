@@ -6,7 +6,19 @@ pub struct Grid {
 }
 
 impl Grid {
-    pub fn create(board: Board) -> Self {
+    pub fn next_tile_in_direction(&self, p: &Position, d: Direction) -> Option<(Tile, Position, Owner)> {
+        let mut new_pos = p.add(d);
+        while let Some(np) = new_pos {
+            let cell = self.index(&np);
+            if let Some(content) = cell {
+                return Some((content.0, np, content.1));
+            }
+            new_pos = np.add(d);
+        }
+        None
+    }
+
+    pub fn create(board: &Board) -> Self {
         let mut grid = Grid {
             cells: vec![None; 289],
         };
@@ -91,17 +103,11 @@ impl Grid {
                 let mut tiles_in_direction: [Option<(Tile, Owner)>; 4] = [None; 4];
                 let mut pos_in_direction: [Option<Position>; 4] = [None, None, None, None];
                 for (i, d) in Direction::ALL.into_iter().enumerate() {
-                    pos_in_direction[i] = end.add(d);
-                    while let Some(new_pos) = &pos_in_direction[i] {
-                        if new_pos.is_gate() {
-                            break;
-                        }
-                        if let Some(c) = self.index(&new_pos) {
-                            tiles_in_direction[i] = Some(*c);
-                            break;
-                        }
-                        pos_in_direction[i] = new_pos.add(d);
-                    }
+                    let Some((t, p, o)) = self.next_tile_in_direction(&end, d) else {
+                        continue
+                    };
+                    pos_in_direction[i] = Some(p);
+                    tiles_in_direction[i] = Some((t, o));
                 }
                 for (index, c) in tiles_in_direction.into_iter().enumerate() {
                     let Some((t, o)) = c else {
@@ -121,44 +127,25 @@ impl Grid {
                 }
                 //check for harmonies in the position it used to block
                 if !start.is_gate() {
-                    let mut tiles_in_direction: [Option<(Tile, Owner)>; 4] = [None; 4];
-                    let mut pos_in_direction: [Option<Position>; 4] = [None, None, None, None];
-                    for (i, d) in Direction::ALL.into_iter().enumerate() {
-                        pos_in_direction[i] = start.add(d);
-                        while let Some(new_pos) = &pos_in_direction[i] {
-                            if new_pos.is_gate() || *new_pos == end {
-                                break;
-                            }
-                            if let Some(c) = self.index(&new_pos) {
-                                tiles_in_direction[i] = Some(*c);
-                                break;
-                            }
-                            pos_in_direction[i] = new_pos.add(d);
-                        }
-                    }
-                    if let (Some(up), Some(down)) = (tiles_in_direction[0], tiles_in_direction[1]) {
-                        if up.1 == down.1 && up.0.harmonizes(&down.0) {
-                            let from = pos_in_direction[0].clone().unwrap();
-                            let to = pos_in_direction[1].clone().unwrap();
+                    if let (Some(up), Some(down)) = (self.next_tile_in_direction(&start, Direction::Up), self.next_tile_in_direction(&start, Direction::Down)) {
+                        if up.2 == down.2 && up.0.harmonizes(&down.0) && !up.1.is_gate() && !down.1.is_gate() {
                             #[cfg(debug_assertions)]
-                            println!("adding harmony that used to be blocked. From {from:?} to {to:?}");
+                            println!("adding harmony that used to be blocked. From {:?} to {:?}", up.1, down.1);
                             harmonie_list.push((
+                                up.2,
                                 up.1,
-                                from,
-                                to,
+                                down.1,
                             ));
                         }
                     }
-                    if let (Some(left), Some(right)) = (tiles_in_direction[2], tiles_in_direction[3]) {
-                        if left.1 == right.1 && left.0.harmonizes(&right.0) {
-                            let from = pos_in_direction[2].clone().unwrap();
-                            let to = pos_in_direction[3].clone().unwrap();
+                    if let (Some(left), Some(right)) = (self.next_tile_in_direction(&start, Direction::Left), self.next_tile_in_direction(&start, Direction::Right)) {
+                        if left.2 == right.2 && left.0.harmonizes(&right.0) && !left.1.is_gate() && !right.1.is_gate() {
                             #[cfg(debug_assertions)]
-                            println!("adding harmony that used to be blocked. From {from:?} to {to:?}");
+                            println!("adding harmony that used to be blocked. From {:?} to {:?}", left.1, right.1);
                             harmonie_list.push((
+                                left.2,
                                 left.1,
-                                from,
-                                to,
+                                right.1,
                             ));
                         }
                     }
@@ -228,7 +215,7 @@ impl Grid {
                 last_row_tile_pos_option = Some(pos);
                 continue ;
             };
-            let (last_row_tile_type, last_row_tile_owner) =
+            let (last_row_tile_type, last_row_tile_owner): (Tile, Owner) =
                 self.index(last_row_tile_pos).clone().unwrap();
             let same_owner = *new_row_tile_owner == last_row_tile_owner;
             let tiles_harmonize = last_row_tile_type.harmonizes(new_row_tile_type);
@@ -245,6 +232,43 @@ impl Grid {
 }
 
 impl std::fmt::Display for Grid {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("    ")?;
+        for column in -8..=8 {
+            write!(f, "  {:2}  ", column)?;
+        }
+        f.write_str("\n")?;
+        for row in (0..17).rev() {
+            write!(f, "{:<2}: ", row as isize - 8)?;
+            for column in 0..17 {
+                if let Some((Tile::Flower(flower), o)) = &self.cells[column + row * 17] {
+                    write!(
+                        f,
+                        "[{} {}]",
+                        match flower {
+                            FlowerTile::Rose => "R3",
+                            FlowerTile::Chrysanthemum => "R4",
+                            FlowerTile::Rhododendron => "R5",
+                            FlowerTile::Jasmine => "W3",
+                            FlowerTile::Lily => "W4",
+                            FlowerTile::WhiteJade => "W5",
+                        },
+                        match o {
+                            &Owner::Host => "H",
+                            &Owner::Guest => "G",
+                        }
+                    )?;
+                } else {
+                    f.write_str("[    ]")?;
+                }
+            }
+            f.write_str("\n")?;
+        }
+        std::fmt::Result::Ok(())
+    }
+}
+
+impl std::fmt::Debug for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str("    ")?;
         for column in -8..=8 {

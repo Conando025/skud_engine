@@ -59,7 +59,7 @@ impl Tile {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Move {
     Planting(FlowerTile, Position),
     Arranging(Position, Position),

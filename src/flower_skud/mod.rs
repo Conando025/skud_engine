@@ -8,7 +8,23 @@ pub use board::*;
 mod grid;
 pub use grid::*;
 
-fn all_possibilities_for_piece_to_move(
+fn print_checklist(check_list: &[bool; 289]) {
+    print!("    ");
+    for column in -8..=8 {
+        print!("  {:2}  ", column);
+    }
+    print!("\n");
+    for row in (0..17).rev() {
+        print!("{:<2}: ", row as isize - 8);
+        for column in 0..17 {
+            let v = if check_list[column + row * 17] {"t"} else {"f"};
+            print!("[  {v} ]");
+        }
+        print!("\n");
+    }
+}
+
+pub fn all_possibilities_for_piece_to_move(
     board: &Board,
     grid: &Grid,
     moving_tile_type: Tile,
@@ -16,13 +32,15 @@ fn all_possibilities_for_piece_to_move(
 ) -> Vec<Move> {
     let check_list = flood_fill(grid, moving_tile_type, &starting_position);
 
+
+
     let mut possible_clash_coords = Vec::with_capacity(6);
     for (t, p) in board
         .played_tiles_host
         .iter()
         .chain(board.played_tiles_guest.iter())
     {
-        if moving_tile_type.clashes(t) {
+        if moving_tile_type.clashes(t) && !p.is_gate() {
             possible_clash_coords.push(p.value());
         }
     }
@@ -37,8 +55,27 @@ fn all_possibilities_for_piece_to_move(
         if correct_garden(possible_position.clone(), moving_tile_type) {
             let (x, y) = possible_position.value();
             for possible_clash_coord in &possible_clash_coords {
-                if x == possible_clash_coord.0 || y == possible_clash_coord.1 {
-                    continue 'check_position;
+                if x == possible_clash_coord.0 {
+                    if y > possible_clash_coord.1 {
+                        if grid.next_tile_in_direction(&possible_position, Direction::Down).unwrap().0.clashes(&moving_tile_type) {
+                            continue 'check_position;
+                        }
+                    } else if y < possible_clash_coord.1 {
+                        if grid.next_tile_in_direction(&possible_position, Direction::Up).unwrap().0.clashes(&moving_tile_type) {
+                            continue 'check_position;
+                        }
+                    }
+                }
+                if y == possible_clash_coord.1 {
+                    if x > possible_clash_coord.0 {
+                        if grid.next_tile_in_direction(&possible_position, Direction::Left).unwrap().0.clashes(&moving_tile_type) {
+                            continue 'check_position;
+                        }
+                    } else if x < possible_clash_coord.0 {
+                        if grid.next_tile_in_direction(&possible_position, Direction::Right).unwrap().0.clashes(&moving_tile_type) {
+                            continue 'check_position;
+                        }
+                    }
                 }
             }
             legal_moves.push(Move::Arranging(
@@ -63,16 +100,11 @@ fn flood_fill(grid: &Grid, moving_tile_type: Tile, starting_position: &Position)
     let mut tiles_in_direction: [Option<Tile>; 4] = [None; 4];
     let mut pos_in_direction: [Option<Position>; 4] = [None, None, None, None];
     for (i, d) in Direction::ALL.into_iter().enumerate() {
-        pos_in_direction[i] = starting_position.add(d);
-        while let Some(new_pos) = &pos_in_direction[i] {
-            if new_pos.is_gate() {
-                break;
+        if let Some((t, p, _)) = grid.next_tile_in_direction(starting_position, d) {
+            if !p.is_gate() {
+                tiles_in_direction[i] = Some(t);
+                pos_in_direction[i] = Some(p);
             }
-            if let Some((t, _o)) = &grid.index(&new_pos) {
-                tiles_in_direction[i] = Some(*t);
-                break;
-            }
-            pos_in_direction[i] = new_pos.add(d);
         }
     }
 
@@ -96,37 +128,41 @@ fn flood_fill(grid: &Grid, moving_tile_type: Tile, starting_position: &Position)
         directions_to_check.push(Direction::Down);
     };
 
-    let mut left_to_check: Vec<(Position, Direction, usize)> =
+    let mut left_to_check: Vec<(Position, Direction)> =
         Vec::with_capacity(2 * move_range * (move_range + 1));
     left_to_check.append(
         &mut directions_to_check
             .iter()
-            .map(|&d| (starting_position.clone(), d, 1))
+            .map(|&d| (starting_position.clone(), d))
             .collect(),
     );
 
     //flood fill
-    while let Some((p, d, c)) = left_to_check.pop() {
-        let Some(new_pos) = p.add(d) else {
-            continue;
-        };
-        let (n_x, n_y) = new_pos.value();
-        let (n_x, n_y) = ((n_x + 8) as usize, (n_y + 8) as usize);
-        if check_list[n_x + n_y * 17] {
-            continue;
-        };
-        if let Some(_t) = grid.index(&new_pos) {
-            continue;
-        }
-        check_list[n_x + n_y * 17] = true;
-        if c < move_range {
+    for _ in 0..move_range {
+        let move_: Vec<(Position, Direction)> = left_to_check.drain(0..).collect();
+        for (p, d) in move_ {
+            let Some(new_pos) = p.add(d) else {
+                continue;
+            };
+            if new_pos.is_gate() {
+                continue;
+            }
+            let (n_x, n_y) = new_pos.value();
+            let (n_x, n_y) = ((n_x + 8) as usize, (n_y + 8) as usize);
+            if check_list[n_x + n_y * 17] {
+                continue
+            };
+            if let Some(_t) = grid.index(&new_pos) {
+                continue;
+            }
+            check_list[n_x + n_y * 17] = true;
             left_to_check.append(
                 &mut directions_to_check
                     .iter()
-                    .map(|&d| (new_pos.clone(), d, c + 1))
+                    .map(|&d| (new_pos.clone(), d))
                     .collect(),
             );
-        }
+        };
     }
     check_list
 }

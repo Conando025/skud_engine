@@ -19,19 +19,19 @@ impl Board {
             played_tiles_host: Vec::with_capacity(10),
             reserve_host: vec![
                 (Tile::Flower(FlowerTile::Rose), 3),
-                (Tile::Flower(FlowerTile::Rhododendron), 3),
                 (Tile::Flower(FlowerTile::Chrysanthemum), 3),
+                (Tile::Flower(FlowerTile::Rhododendron), 3),
+                (Tile::Flower(FlowerTile::Jasmine), 3),
                 (Tile::Flower(FlowerTile::Lily), 3),
                 (Tile::Flower(FlowerTile::WhiteJade), 3),
-                (Tile::Flower(FlowerTile::Jasmine), 3),
             ], //tiles and their counts
             reserve_guest: vec![
                 (Tile::Flower(FlowerTile::Rose), 3),
-                (Tile::Flower(FlowerTile::Rhododendron), 3),
                 (Tile::Flower(FlowerTile::Chrysanthemum), 3),
+                (Tile::Flower(FlowerTile::Rhododendron), 3),
+                (Tile::Flower(FlowerTile::Jasmine), 3),
                 (Tile::Flower(FlowerTile::Lily), 3),
                 (Tile::Flower(FlowerTile::WhiteJade), 3),
-                (Tile::Flower(FlowerTile::Jasmine), 3),
             ],
             move_count: 0,
             moves_since_planting: 0,
@@ -40,25 +40,16 @@ impl Board {
 
     pub fn create_test() -> Self {
         let mut b = Self::empty();
-        b.played_tiles_host.append(&mut vec![
-            (
-                Tile::Flower(FlowerTile::Rose),
-                Position::new(-1, 1).unwrap(),
-            ),
-            (
-                Tile::Flower(FlowerTile::Rose),
-                Position::new(1, -1).unwrap(),
-            ),
-            (
-                Tile::Flower(FlowerTile::Chrysanthemum),
-                Position::new(-1, -1).unwrap(),
-            ),
-            (
-                Tile::Flower(FlowerTile::Chrysanthemum),
-                Position::new(1, 2).unwrap(),
-            ),
-        ]);
-        b.move_count = 1;
+        b.apply_move(Move::Planting(FlowerTile::Chrysanthemum, Position::new(0, -8).unwrap()));
+        b.apply_move(Move::Planting(FlowerTile::Chrysanthemum, Position::new(0, 8).unwrap()));
+        b.apply_move(Move::Planting(FlowerTile::Rhododendron, Position::new(8, 0).unwrap()));
+        b.apply_move(Move::Planting(FlowerTile::Rhododendron, Position::new(-8, 0).unwrap()));
+        b.apply_move(Move::Arranging(Position::new(8, 0).unwrap(), Position::new(7, -4).unwrap()));
+        b.apply_move(Move::Planting(FlowerTile::Rhododendron, Position::new(8, 0).unwrap()));
+        b.apply_move(Move::Arranging(Position::new(0, -8).unwrap(), Position::new(0, -4).unwrap()));
+        b.apply_move(Move::Arranging(Position::new(-8, 0).unwrap(), Position::new(-7, 4).unwrap()));
+        b.apply_move(Move::Planting(FlowerTile::Rhododendron, Position::new(-8, 0).unwrap()));
+        b.apply_move(Move::Arranging(Position::new(0, 8).unwrap(), Position::new(2, 6).unwrap()));
         b
     }
 
@@ -76,6 +67,30 @@ impl Board {
             Player::Host => (self.reserve_host.clone(), self.played_tiles_host.clone()),
             Player::Guest => (self.reserve_guest.clone(), self.played_tiles_guest.clone()),
         };
+        if self.move_count < 2 {
+            if self.move_count == 0 {
+                loop {
+                    let (tile, amount) = reserve.remove(thread_rng().gen_range(0..reserve.len()));
+                    let Tile::Flower(flower) = tile;
+                    if amount == 0 {
+                        unreachable!("All flower tiles should be in the reserve for move one.")
+                    }
+                    return Some(Move::Planting(flower, Position::new(0, -8).unwrap()));
+                }
+            } else {
+                loop {
+                    let south_gate = grid.index(&Position::new(0, -8).unwrap());
+                    let (tile, _) = south_gate.expect("There should be a Tile in the south gate for the second move.");
+                    let Tile::Flower(flower) = tile;
+                    for (t, a) in reserve {
+                        if t == tile && a == 0 {
+                            unreachable!("All flower tiles should be in the reserve for move two.")
+                        }
+                    }
+                    return Some(Move::Planting(flower, Position::new(0, 8).unwrap()));
+                }
+            }
+        }
         fn random_plant(grid: &Grid, reserve: &mut Vec<(Tile, u8)>) -> Option<Move> {
             let index = thread_rng().gen_range(0..reserve.len());
             let (Tile::Flower(t), amount) = reserve.index_mut(index);
@@ -131,13 +146,13 @@ impl Board {
                     }
                     mo
                 }
-            } else if reserve.len() == 0 {
+            } else if reserve.len() == 0 && played_tiles.len() > 0 {
                 let mo = random_move(grid, self, &mut played_tiles);
                 if mo.is_none() {
                     continue;
                 }
                 mo
-            } else if played_tiles.len() == 0 {
+            } else if played_tiles.len() == 0 && reserve.len() > 0 {
                 let mo = random_plant(grid, &mut reserve);
                 if mo.is_none() {
                     continue;
@@ -199,9 +214,6 @@ impl Board {
             if ring_fragment.len() == 0 {
                 panic!("a ring_fragment need at least one element")
             }
-            if harmonies.len() < 3 {
-                return Vec::new();
-            }
             let mut rings = Vec::new();
             for (index, harmony) in harmonies.iter().enumerate() {
                 let fragment_start = ring_fragment.first().unwrap();
@@ -233,19 +245,35 @@ impl Board {
         }
 
         fn ring_contains_center(ring: Vec<Position>) -> bool {
-            let mut angle:f64 = 0.0;
+            let mut winding_number = 0;
             for i in 0..ring.len() {
                 let start =  ring[i].value();
-                let start = (start.0 as isize, start.1 as isize);
                 let end =  ring[(i+1) % ring.len()].value();
-                let end = (end.0 as isize, end.1 as isize);
-                fn magnitude(v: (isize, isize)) -> f64 {
-                    ((v.0 * v.0 + v.1 * v.1) as f64).sqrt()
+                if (start.0 == 0 && start.1 == 0) || (end.0 == 0 && end.1 == 0) ||
+                    (start.0 == 0 && end.0 == 0 && start.1 * end.1 < 0) ||
+                    (start.1 == 0 && end.1 == 0 && start.0 * end.0 < 0) {
+                    //If the tiles are on the Origin or cross it then the cant form a Ring containing it
+                    return false;
                 }
-                let sin_angle = (start.0 * end.1 - start.1 * end.0) as f64 / (magnitude(start) * magnitude(end));
-                angle += sin_angle.asin();
+                let start = (start.0 as isize, start.1 as isize);
+                let end = (end.0 as isize, end.1 as isize);
+                //MAGIC
+                //Not really i count how often the right edge is crossed upwards / downwards
+                if end.1 <= 0 {
+                    if start.1 > 0 {
+                        if ( (start.0 - end.0) * (0 - end.1) - (0 -  end.0) * (start.1 - end.1) ) > 0 {
+                            winding_number += 1;
+                        }
+                    }
+                } else {
+                    if start.1 <= 0 {
+                        if ( (start.0 - end.0) * (0 - end.1) - (0 -  end.0) * (start.1 - end.1) ) < 0 {
+                            winding_number -= 1;
+                        }
+                    }
+                }
             }
-            angle.abs() > std::f64::consts::PI
+            winding_number != 0
         }
 
         if guest_harmonies.len() + host_harmonies.len() > 0 {
@@ -326,11 +354,38 @@ impl Board {
     }
 
     pub fn all_legal_moves(&self, grid: &mut Grid) -> Moves {
-        let mut move_set: Moves = Vec::new();
+        if self.finished(grid.list_all_harmonies(), self.next_to_move()).is_some() {
+            return Vec::new();
+        }
         let (tiles_played, reserve) = match self.next_to_move() {
             Player::Guest => (&self.played_tiles_guest, &self.reserve_guest),
             Player::Host => (&self.played_tiles_host, &self.reserve_host),
         };
+        let mut move_set: Moves = Vec::with_capacity(20 * tiles_played.len());
+        if self.move_count < 2 {
+            if self.move_count == 0 {
+                let south_gate = Position::new(0, -8).unwrap();
+                for (Tile::Flower(flower), amount) in reserve {
+                    if *amount > 0 {
+                        move_set.push(Move::Planting(*flower, south_gate.clone()));
+                    } else {
+                        unreachable!("All flower tiles should be in the reserve for move one.")
+                    }
+                }
+            } else {
+                let south_gate = Position::new(0, -8).unwrap();
+                let noth_gate = Position::new(0, 8).unwrap();
+                let (tile, _) = grid.index(&south_gate).expect("There should be a Tile in the south gate for the second move.");
+                let Tile::Flower(flower) = tile;
+                for (t, a) in reserve {
+                    if *t == tile && *a == 0 {
+                        unreachable!("All flower tiles should be in the reserve for move two.")
+                    }
+                }
+                return vec![Move::Planting(flower, noth_gate)];
+            }
+            return move_set;
+        }
         for (tile, position) in tiles_played {
             let mut moves_for_piece =
                 all_possibilities_for_piece_to_move(self, grid, *tile, position.clone());

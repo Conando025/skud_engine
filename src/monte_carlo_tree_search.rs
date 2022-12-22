@@ -1,4 +1,5 @@
-use crate::flower_skud::{Board, Grid, Move};
+//use crate::flower_skud::{Board, Grid, Move, Position};
+use crate::ultimate_tic_tac_toe::{Board, Move};
 use rand::{thread_rng, Rng};
 use std::borrow::Borrow;
 use std::cell::{RefCell, RefMut};
@@ -31,7 +32,7 @@ pub fn create_root_node(board: Board) -> CellNodeReference {
         simulations: 0,
         win_count: 0,
         draw_count: 0,
-        possible_moves: board.all_legal_moves(&mut Grid::create(board.clone())),
+        possible_moves: board.all_legal_moves(), //board.all_legal_moves(&mut Grid::create(&board)),
         children: Vec::new(),
         origin: Origin::Root(board),
     };
@@ -47,7 +48,7 @@ pub fn trim_tree(node: CellNodeReference) -> CellNodeReference {
 }
 
 pub fn engine(root: CellNodeReference, mode: Mode) -> CellNodeReference {
-    println!("{}", Grid::create(extract_board(root.clone())));
+    println!("{}", extract_board(root.clone())); //println!("{}", Grid::create(&extract_board(root.clone())));
     match mode {
         Mode::Iterations(iterations) => {
             for _iteration in 0..iterations {
@@ -92,6 +93,7 @@ fn algorithm(root: CellNodeReference) {
             }
         }
         NodeType::End(node) => {
+            //println!("Hit an end node");
             let board = extract_board(node.clone());
             let outcome = simulation_phase(board);
             backpropagation(outcome, &Rc::downgrade(&node));
@@ -155,13 +157,16 @@ fn expansion_phase(leaf_node_reference: CellNodeReference) -> Vec<(Board, CellNo
         };
         let next_move =
             possible_next_moves.remove(thread_rng().gen_range(0..possible_next_moves.len()));
+        //if next_move == Move::Arranging(Position::new(-6,3).unwrap(), Position::new(-6, 6).unwrap()) {
+        //    println!("winning move");
+        //}
         let mut new_node_board = board.clone();
         new_node_board.apply_move(next_move.clone());
         let new_node = Rc::new(RefCell::new(Node {
             simulations: 0,
             win_count: 0,
             draw_count: 0,
-            possible_moves: new_node_board.all_legal_moves(&mut Grid::create(new_node_board.clone())),
+            possible_moves: new_node_board.all_legal_moves(), //new_node_board.all_legal_moves(&mut Grid::create(&new_node_board)),
             children: Vec::new(),
             origin: Origin::Parent(Rc::downgrade(&leaf_node_reference), next_move.clone()),
         }));
@@ -196,40 +201,42 @@ fn backpropagation(value: Output, node: &Weak<RefCell<Node>>) {
 
 fn simulation_phase(mut board: Board) -> Output {
     let player = match board.next_to_move() {
-        Player::Host => Player::Host,
-        Player::Guest => Player::Guest,
+        Player::Host => Player::Guest, //DO NOT TOUCH! IMPORTANT
+        Player::Guest => Player::Host, //DO NOT TOUCH! IMPORTANT
     };
-    let mut grid = Grid::create(board.clone());
-    let mut harmony_list = grid.list_all_harmonies();
+    //let mut grid = Grid::create(&board);
+    //let mut harmony_list = grid.list_all_harmonies();
+    #[cfg(debug_assertions)]
+    println!("{board}");
     let outcome = loop {
-        let board_state = board.finished(harmony_list.clone(), player);
+        let board_state = board.finished(player); //board.finished(harmony_list.clone(), player);
         if board_state.is_some() {
             break board_state;
         } else {
-            let Some(next_move) = board.get_random_move(&grid) else {
+            let Some(next_move) = board.get_random_move(/*&grid*/) else {
                 break board_state;
             };
             #[cfg(debug_assertions)]
             {
+                //println!("{grid}");
                 println!("{next_move:?}");
-                println!("{grid}");
             }
-            grid.apply_move(next_move.clone(), board.next_to_move(), &mut harmony_list);
+            //grid.apply_move(next_move.clone(), board.next_to_move(), &mut harmony_list);
             board.apply_move(next_move.clone());
             #[cfg(debug_assertions)]
-            println!("{grid}");
+            println!("{board}");
         }
     };
     outcome.unwrap_or(Output::Draw) //the or is for petty draws
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum Player {
     Host,
     Guest,
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum Output {
     Win,
     Draw,
